@@ -18,6 +18,7 @@ public sealed class PacmanAotPatternTests
             typeof(PacmanPlayer),
             typeof(PacmanGhostState),
             typeof(PacmanPellet),
+            typeof(PacmanFruit),
             typeof(PacmanStats),
         };
 
@@ -52,6 +53,11 @@ public sealed class PacmanAotPatternTests
         await Assert.That(properties).Contains("Score");
         await Assert.That(properties).Contains("Lives");
         await Assert.That(properties).Contains("Frightened");
+        await Assert.That(properties).Contains("FruitItem");
+        await Assert.That(properties).Contains("FruitVisible");
+        await Assert.That(properties).Contains("AteFruit");
+        await Assert.That(properties).Contains("FrightenedRemaining");
+        await Assert.That(properties).Contains("FrightFlashes");
     }
 
     [Test]

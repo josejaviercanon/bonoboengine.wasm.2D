@@ -45,6 +45,7 @@ public enum PacmanSpriteKind : byte
     Clyde,
     Pellet,
     PowerPellet,
+    Fruit,
 }
 
 public enum PacmanGhostRole : byte
@@ -158,18 +159,23 @@ public struct PacmanGhostState
     public int Mode;
     public int HomeX;
     public int HomeY;
+    public byte InHouse;
+    public int DotCount;
 
-    public PacmanGhostState(PacmanGhostRole role, PacmanGhostMode mode, PacmanCell home)
+    public PacmanGhostState(PacmanGhostRole role, PacmanGhostMode mode, PacmanCell home, bool inHouse = false)
     {
         Role = (int)role;
         Mode = (int)mode;
         HomeX = home.X;
         HomeY = home.Y;
+        InHouse = inHouse ? (byte)1 : (byte)0;
+        DotCount = 0;
     }
 
     public PacmanGhostRole GhostRole => (PacmanGhostRole)Role;
     public PacmanGhostMode GhostMode => (PacmanGhostMode)Mode;
     public PacmanCell HomeCell => new(HomeX, HomeY);
+    public bool IsInHouse => InHouse != 0;
 }
 
 /// <summary>Marks a pellet entity. Power pellets activate frightened mode.</summary>
@@ -181,6 +187,22 @@ public struct PacmanPellet
     public PacmanPellet(bool power)
     {
         Power = power;
+    }
+}
+
+/// <summary>Marks the single fruit entity. Visible toggled by fruit-session logic.</summary>
+[Component]
+public struct PacmanFruit
+{
+    public int Item;
+    public float RemainingSeconds;
+    public bool Visible;
+
+    public PacmanFruit()
+    {
+        Item = 0;
+        RemainingSeconds = 0f;
+        Visible = false;
     }
 }
 
@@ -205,6 +227,17 @@ public struct PacmanStats
     public bool Died;
     public bool LevelUp;
 
+    // Level-driven gameplay state
+    public int DotsEaten;
+    public int FruitShownCount;
+    public bool AteFruit;
+    public bool GlobalDotActive;
+    public int GlobalDotCount;
+    public float HouseIdleSeconds;
+    public int ExtraLivesAwarded;
+    public float FrightenedDuration;
+    public int FrightFlashes;
+
     public PacmanStats(int lives, int level, int pelletsRemaining)
     {
         Score = 0;
@@ -223,5 +256,15 @@ public struct PacmanStats
         GhostEaten = false;
         Died = false;
         LevelUp = false;
+
+        DotsEaten = 0;
+        FruitShownCount = 0;
+        AteFruit = false;
+        GlobalDotActive = false;
+        GlobalDotCount = 0;
+        HouseIdleSeconds = 0f;
+        ExtraLivesAwarded = 0;
+        FrightenedDuration = 0f;
+        FrightFlashes = 0;
     }
 }

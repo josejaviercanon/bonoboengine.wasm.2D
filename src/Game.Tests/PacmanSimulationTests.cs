@@ -13,7 +13,7 @@ public sealed class PacmanSimulationTests
 
         Assert.Equal(29, PacmanMaze.Width);
         Assert.Equal(31, PacmanMaze.Height);
-        Assert.Equal(PacmanMaze.PelletCount + 5, snapshot.Count);
+        Assert.Equal(PacmanMaze.PelletCount + 6, snapshot.Count);
         Assert.Equal(4, snapshot.Count(s => s.Kind is
             PacmanSpriteKind.Blinky or PacmanSpriteKind.Pinky or PacmanSpriteKind.Inky or PacmanSpriteKind.Clyde));
         Assert.Equal(4, snapshot.Count(s => s.Kind == PacmanSpriteKind.PowerPellet));
@@ -59,7 +59,7 @@ public sealed class PacmanSimulationTests
 
         Assert.Equal(5, signals.Count);
         Assert.Equal(new[] { 1L, 2L, 3L, 4L, 5L }, signals.Select(s => s.Seq));
-        Assert.All(signals, signal => Assert.Equal(PacmanMaze.PelletCount + 5, signal.EntityCount));
+        Assert.All(signals, signal => Assert.Equal(PacmanMaze.PelletCount + 6, signal.EntityCount));
     }
 
     [Fact]
@@ -117,6 +117,6 @@ public sealed class PacmanSimulationTests
         Assert.Equal(0, sim.Score);
         Assert.Equal(PacmanConfig.InitialLives, sim.Lives);
         Assert.Equal(PacmanMaze.PelletCount, sim.PelletsRemaining);
-        Assert.Equal(PacmanMaze.PelletCount + 5, sim.Snapshot().Count);
+        Assert.Equal(PacmanMaze.PelletCount + 6, sim.Snapshot().Count);
     }
 }

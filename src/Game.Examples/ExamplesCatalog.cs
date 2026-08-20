@@ -137,7 +137,9 @@ public sealed record PacmanScenePayload(
     int MazeWidth,
     int MazeHeight,
     float CellSize,
-    string StreamUrl);
+    string StreamUrl,
+    int FruitItem = 0,
+    bool FruitVisible = false);
 
 /// <summary>Client input suggestion for Pacman; ECS validates direction on fixed tick.</summary>
 public sealed record PacmanInputRequest(string Direction);

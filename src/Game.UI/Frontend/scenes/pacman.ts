@@ -5,6 +5,7 @@ import type { SceneBuilder } from './types';
 import { publishCSharpStats } from '../stats/overlays';
 import { SnapshotBuffer } from './interpolation';
 import { connectSignalStream } from './signalSource';
+import { BUFFER_HEADER_LENGTH, floatBool, type EntityDecoder } from './bufferLayout';
 
 interface PacmanSpriteState {
     id: number;
@@ -22,6 +23,7 @@ interface PacmanSpriteState {
     r: number;
     g: number;
     b: number;
+    fruitItem: number;
 }
 
 interface PacmanRenderSignal {
@@ -43,6 +45,12 @@ interface PacmanRenderSignal {
     ghostEaten: boolean;
     died: boolean;
     levelUp: boolean;
+    fruitItem: number;
+    fruitVisible: boolean;
+    ateFruit: boolean;
+    frightenedRemaining: number;
+    frightenedDuration: number;
+    frightFlashes: number;
 }
 
 interface PacmanSceneParams {
@@ -94,9 +102,31 @@ const KIND_INKY = 3;
 const KIND_CLYDE = 4;
 const KIND_PELLET = 5;
 const KIND_POWER_PELLET = 6;
+const KIND_FRUIT = 7;
 
 const MODE_FRIGHTENED = 2;
 const MODE_EYES = 3;
+
+// Fruit item indices (must match PacmanFruitItem enum in C#)
+const FRUIT_CHERRY = 0;
+const FRUIT_STRAWBERRY = 1;
+const FRUIT_PEACH = 2;
+const FRUIT_APPLE = 3;
+const FRUIT_GRAPE = 4;
+const FRUIT_GALAXIAN = 5;
+const FRUIT_BELL = 6;
+const FRUIT_KEY = 7;
+
+const FRUIT_COLORS: Record<number, number> = {
+    [FRUIT_CHERRY]: 0xff3b30,
+    [FRUIT_STRAWBERRY]: 0xff6b6b,
+    [FRUIT_PEACH]: 0xffcc80,
+    [FRUIT_APPLE]: 0x66bb6a,
+    [FRUIT_GRAPE]: 0xab47bc,
+    [FRUIT_GALAXIAN]: 0x42a5f5,
+    [FRUIT_BELL]: 0xffd54f,
+    [FRUIT_KEY]: 0xe0e0e0,
+};
 
 const KEY_TO_DIRECTION: Record<string, string> = {
     ArrowUp: 'up',
@@ -221,6 +251,8 @@ export const pacmanScene: SceneBuilder = (app, params) => {
     let level = p.level ?? 1;
     let previousGameOver = gameOver;
     let stepMs = 1000 / 60;
+    let frightenedRemaining = 0;
+    let frightFlashes = 0;
     const interpolation = new SnapshotBuffer<PacmanSpriteState>();
 
     const layout = () => {
@@ -294,14 +326,22 @@ export const pacmanScene: SceneBuilder = (app, params) => {
         pelletLayer.clear();
         actorLayer.clear();
 
+        const now = performance.now();
+
         for (const { previous, current } of interpolation.values()) {
             const x = previous.x + (current.x - previous.x) * alpha;
             const y = previous.y + (current.y - previous.y) * alpha;
             if (!current.visible) continue;
 
             if (current.kind === KIND_PELLET || current.kind === KIND_POWER_PELLET) {
-                const radius = current.kind === KIND_POWER_PELLET ? 2.4 + Math.sin(performance.now() / 160) * 0.5 : 1.2;
+                const radius = current.kind === KIND_POWER_PELLET ? 2.4 + Math.sin(now / 160) * 0.5 : 1.2;
                 pelletLayer.circle(x, y, radius).fill(current.kind === KIND_POWER_PELLET ? 0xfef08a : 0xffffff);
+                continue;
+            }
+
+            if (current.kind === KIND_FRUIT) {
+                const fruitColor = FRUIT_COLORS[current.fruitItem] ?? 0xff3b30;
+                pelletLayer.circle(x, y, cellSize * 0.38).fill(fruitColor);
                 continue;
             }
 
@@ -310,7 +350,20 @@ export const pacmanScene: SceneBuilder = (app, params) => {
                 continue;
             }
 
-            const ghostColor = current.mode === MODE_FRIGHTENED ? 0x2563eb : GHOST_COLORS[current.kind] ?? 0xffffff;
+            // Ghost: fright flashing — blink white/blue when remaining time is low
+            let ghostColor: number;
+            if (current.mode === MODE_FRIGHTENED) {
+                const flashWindow = frightFlashes * 0.332; // ~166ms per half-flash × 2
+                const isFlashing = frightenedRemaining > 0 && frightenedRemaining <= flashWindow;
+                if (isFlashing) {
+                    // Toggle every 166ms
+                    ghostColor = Math.floor(now / 166) % 2 === 0 ? 0xffffff : 0x2563eb;
+                } else {
+                    ghostColor = 0x2563eb;
+                }
+            } else {
+                ghostColor = GHOST_COLORS[current.kind] ?? 0xffffff;
+            }
             actorLayer.roundRect(x - cellSize * 0.42, y - cellSize * 0.42, cellSize * 0.84, cellSize * 0.84, 2).fill(ghostColor);
             actorLayer.circle(x - 1.6, y - 1, 1.4).fill(0xffffff);
             actorLayer.circle(x + 1.6, y - 1, 1.4).fill(0xffffff);
@@ -351,16 +404,87 @@ export const pacmanScene: SceneBuilder = (app, params) => {
             const signal = parsed;
             publishCSharpStats({ seq: signal.seq, entityCount: signal.entityCount, tickMs: signal.tickMs });
             stepMs = Math.max(1, signal.stepMs ?? 1000 / 60);
+            frightenedRemaining = signal.frightenedRemaining ?? 0;
+            frightFlashes = signal.frightFlashes ?? 0;
             interpolation.ingest(signal.sprites, signal.seq, signal.epoch);
             setStats(signal.score, signal.lives, signal.level, signal.gameOver, signal.started);
 
             if (signal.atePellet) playSound('pacman-munch', 'pacman-munch1.wav');
             if (signal.atePowerPellet) playSound('pacman-power', 'pacman-frightened.wav');
             if (signal.ghostEaten) playSound('pacman-ghost-eaten', 'pacman-ghost-eaten.wav');
+            if (signal.ateFruit) playSound('pacman-fruit', 'pacman-fruit.wav');
             if (signal.levelUp) playSound('pacman-level-up', 'pacman-extra-life.wav');
             if (signal.died && !signal.gameOver) playSound('pacman-dying', 'pacman-dying.wav');
         } catch (error: unknown) {
             console.error('[pixi-debug] pacman-move parse failed:', error);
+        }
+    });
+
+    // ADR-007 Phase 3: float32 buffer decoder for SINGLEPLAYER co-located host.
+    // Layout: header(6) + extras(17) + entities × stride(16)
+    //   extras: score, lives, level, pelletsRemaining, gameOver, started, frightened,
+    //           frightenedRemaining, frightenedDuration, frightFlashes,
+    //           fruitVisible, fruitItem, atePellet, atePowerPellet, ghostEaten, died, levelUp, ateFruit
+    //   entity: id, x, y, prevX, prevY, velX, velY, rotation, kind, direction, mode, visible, r, g, b, fruitItem
+    const PACMAN_BUFFER_EXTRAS = 18;
+    const PACMAN_BUFFER_ENTITY_BASE = BUFFER_HEADER_LENGTH + PACMAN_BUFFER_EXTRAS;
+
+    const decodePacmanSprite: EntityDecoder<PacmanSpriteState> = (floats, offset) => ({
+        id: floats[offset],
+        x: floats[offset + 1],
+        y: floats[offset + 2],
+        previousX: floats[offset + 3],
+        previousY: floats[offset + 4],
+        velocityX: floats[offset + 5],
+        velocityY: floats[offset + 6],
+        rotation: floats[offset + 7],
+        kind: floats[offset + 8],
+        direction: floats[offset + 9],
+        mode: floats[offset + 10],
+        visible: floatBool(floats[offset + 11]),
+        r: floats[offset + 12],
+        g: floats[offset + 13],
+        b: floats[offset + 14],
+        fruitItem: floats[offset + 15],
+    });
+
+    stream.addBufferListener('pacman-move', (floats) => {
+        try {
+            const header = interpolation.ingestFromBuffer(floats, decodePacmanSprite, PACMAN_BUFFER_ENTITY_BASE);
+            if (!header) return;
+            publishCSharpStats({ seq: header.seq, entityCount: header.entityCount, tickMs: header.tickMs });
+            stepMs = Math.max(1, header.stepMs);
+
+            const extras = BUFFER_HEADER_LENGTH;
+            const score = floats[extras];
+            const lives = floats[extras + 1];
+            const level = floats[extras + 2];
+            // floats[extras + 3] = pelletsRemaining (unused in draw)
+            const gameOver = floatBool(floats[extras + 4]);
+            const isStarted = floatBool(floats[extras + 5]);
+            // floats[extras + 6] = frightened (unused — derived from remaining)
+            frightenedRemaining = floats[extras + 7];
+            // floats[extras + 8] = frightenedDuration (unused in draw)
+            frightFlashes = floats[extras + 9];
+            // floats[extras + 10] = fruitVisible (unused — drawn via sprite visibility)
+            // floats[extras + 11] = fruitItem (unused — drawn via sprite fruitItem field)
+            const atePellet = floatBool(floats[extras + 12]);
+            const atePowerPellet = floatBool(floats[extras + 13]);
+            const ghostEaten = floatBool(floats[extras + 14]);
+            const died = floatBool(floats[extras + 15]);
+            const levelUp = floatBool(floats[extras + 16]);
+            const ateFruit = floatBool(floats[extras + 17]);
+
+            setStats(score, lives, level, gameOver, isStarted);
+
+            if (atePellet) playSound('pacman-munch', 'pacman-munch1.wav');
+            if (atePowerPellet) playSound('pacman-power', 'pacman-frightened.wav');
+            if (ghostEaten) playSound('pacman-ghost-eaten', 'pacman-ghost-eaten.wav');
+            if (ateFruit) playSound('pacman-fruit', 'pacman-fruit.wav');
+            if (levelUp) playSound('pacman-level-up', 'pacman-extra-life.wav');
+            if (died && !gameOver) playSound('pacman-dying', 'pacman-dying.wav');
+        } catch (error: unknown) {
+            console.error('[pixi-debug] pacman-move buffer decode failed:', error);
         }
     });
 

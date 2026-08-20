@@ -47,9 +47,8 @@ public sealed class PacmanInputSystem : BaseSystem<World, float>
 }
 
 /// <summary>
-/// Advances Pacman gameplay. Ghost AI uses deterministic junction decisions inspired
-/// by the reference project and BrainAI graph concepts, while all mutable state stays
-/// in ECS components or system-owned scratch state.
+/// Advances Pacman gameplay with level-driven speeds, ghost house dot counters,
+/// fruit sessions, elroy/tunnel mechanics, and fright flashing.
 /// </summary>
 public sealed class PacmanStepSystem : BaseSystem<World, float>
 {
@@ -77,12 +76,16 @@ public sealed class PacmanStepSystem : BaseSystem<World, float>
         var stats = World.Get<PacmanStats>(statsEntity);
         if (!stats.Started || stats.GameOver) return;
 
+        var level = PacmanLevels.ForLevel(stats.Level);
+
         BeginFrame();
-        UpdateMode(ref stats, dt);
-        MovePlayer(player, ref stats, dt);
-        MoveGhosts(player, stats, dt);
-        ConsumePellet(player, ref stats);
-        HandleCollisions(player, ref stats);
+        UpdateMode(ref stats, dt, level);
+        UpdateFruit(ref stats, dt);
+        UpdateHouse(ref stats, dt);
+        MovePlayer(player, ref stats, dt, level);
+        MoveGhosts(player, stats, dt, level);
+        ConsumePellet(player, ref stats, level);
+        HandleCollisions(player, ref stats, level);
 
         World.Set(statsEntity, stats);
     }
@@ -106,6 +109,8 @@ public sealed class PacmanStepSystem : BaseSystem<World, float>
             World.Set(ghost, new PacmanMotion());
             World.Set(ghost, new PacmanFacing(PacmanDirection.Left));
             state.Mode = (int)BaseMode(stats);
+            state.InHouse = state.GhostRole != PacmanGhostRole.Blinky ? (byte)1 : (byte)0;
+            state.DotCount = 0;
             World.Set(ghost, state);
         }
     }
@@ -124,7 +129,7 @@ public sealed class PacmanStepSystem : BaseSystem<World, float>
         }
     }
 
-    private void UpdateMode(ref PacmanStats stats, float dt)
+    private void UpdateMode(ref PacmanStats stats, float dt, PacmanLevelProps level)
     {
         if (stats.Frightened)
         {
@@ -133,6 +138,8 @@ public sealed class PacmanStepSystem : BaseSystem<World, float>
 
             stats.Frightened = false;
             stats.FrightenedRemaining = 0f;
+            stats.FrightenedDuration = 0f;
+            stats.FrightFlashes = 0;
             stats.GhostChain = 0;
             foreach (var ghost in FindGhosts())
             {
@@ -147,13 +154,14 @@ public sealed class PacmanStepSystem : BaseSystem<World, float>
             return;
         }
 
+        var modePattern = PacmanLevels.ModePattern(stats.Level);
         stats.ModeRemaining -= dt;
         if (stats.ModeRemaining > 0f) return;
 
-        if (stats.ModeIndex < ModeDurations.Length - 1)
+        if (stats.ModeIndex < modePattern.Length - 1)
         {
             stats.ModeIndex++;
-            stats.ModeRemaining = ModeDurations[stats.ModeIndex];
+            stats.ModeRemaining = modePattern[stats.ModeIndex];
             var newMode = BaseMode(stats);
             foreach (var ghost in FindGhosts())
             {
@@ -171,11 +179,69 @@ public sealed class PacmanStepSystem : BaseSystem<World, float>
         }
         else
         {
-            stats.ModeRemaining = PacmanConfig.ModeFourthChaseSeconds;
+            stats.ModeRemaining = 9999f;
         }
     }
 
-    private void MovePlayer(Entity player, ref PacmanStats stats, float dt)
+    private void UpdateFruit(ref PacmanStats stats, float dt)
+    {
+        var fruitEntity = FindFruit();
+        if (fruitEntity == Entity.Null) return;
+
+        var fruit = World.Get<PacmanFruit>(fruitEntity);
+        if (fruit.Visible)
+        {
+            fruit.RemainingSeconds -= dt;
+            if (fruit.RemainingSeconds <= 0f)
+            {
+                fruit.Visible = false;
+                fruit.RemainingSeconds = 0f;
+            }
+            World.Set(fruitEntity, fruit);
+            return;
+        }
+
+        // Spawn fruit at 70 and 170 dots eaten
+        if (stats.FruitShownCount < 2)
+        {
+            var threshold = stats.FruitShownCount == 0
+                ? PacmanLevels.FirstFruitAtDots
+                : PacmanLevels.SecondFruitAtDots;
+            if (stats.DotsEaten >= threshold)
+            {
+                var lvl = PacmanLevels.ForLevel(stats.Level);
+                fruit.Item = (int)lvl.Fruit;
+                fruit.Visible = true;
+                fruit.RemainingSeconds = PacmanLevels.FruitShowSeconds;
+                stats.FruitShownCount++;
+                World.Set(fruitEntity, fruit);
+            }
+        }
+    }
+
+    private void UpdateHouse(ref PacmanStats stats, float dt)
+    {
+        stats.HouseIdleSeconds += dt;
+        if (stats.HouseIdleSeconds >= PacmanLevels.HouseIdleTimeoutSeconds)
+        {
+            stats.HouseIdleSeconds = 0f;
+            ForceReleaseNextGhost();
+        }
+    }
+
+    private void ForceReleaseNextGhost()
+    {
+        foreach (var ghost in FindGhosts())
+        {
+            var state = World.Get<PacmanGhostState>(ghost);
+            if (!state.IsInHouse || state.GhostRole == PacmanGhostRole.Blinky) continue;
+            state.InHouse = 0;
+            World.Set(ghost, state);
+            return;
+        }
+    }
+
+    private void MovePlayer(Entity player, ref PacmanStats stats, float dt, PacmanLevelProps level)
     {
         var transform = World.Get<PacmanTransform>(player);
         var facing = World.Get<PacmanFacing>(player);
@@ -197,7 +263,20 @@ public sealed class PacmanStepSystem : BaseSystem<World, float>
         }
 
         var direction = facing.CurrentDirection;
-        var speed = direction == PacmanDirection.None ? 0f : PacmanConfig.PlayerSpeed;
+        if (direction == PacmanDirection.None)
+        {
+            World.Set(player, transform);
+            World.Set(player, facing);
+            return;
+        }
+
+        // Dots speed: slow down when about to eat a pellet
+        var hasPellet = FindPelletAt(cell) != Entity.Null;
+        var speedPct = stats.Frightened
+            ? (hasPellet ? level.FrightPacDotsSpeedPct : level.FrightPacSpeedPct)
+            : (hasPellet ? level.PacDotsSpeedPct : level.PacSpeedPct);
+        var speed = PacmanLevels.Speed(speedPct);
+
         Advance(ref transform, direction, speed, dt, cell);
         World.Set(player, transform);
         World.Set(player, facing);
@@ -205,7 +284,7 @@ public sealed class PacmanStepSystem : BaseSystem<World, float>
             PacmanMaze.VectorFor(direction).Y * speed, speed));
     }
 
-    private void MoveGhosts(Entity player, in PacmanStats stats, float dt)
+    private void MoveGhosts(Entity player, in PacmanStats stats, float dt, PacmanLevelProps level)
     {
         var playerTransform = World.Get<PacmanTransform>(player);
         var playerCell = PacmanMaze.CellFromPosition(playerTransform.X, playerTransform.Y);
@@ -222,6 +301,16 @@ public sealed class PacmanStepSystem : BaseSystem<World, float>
             if (ghostState.GhostRole == PacmanGhostRole.Blinky)
             {
                 blinkyCell = cell;
+            }
+
+            // In-house ghosts: don't move until released
+            if (ghostState.IsInHouse)
+            {
+                World.Set(ghost, transform);
+                World.Set(ghost, facing);
+                World.Set(ghost, ghostState);
+                World.Set(ghost, new PacmanMotion());
+                continue;
             }
 
             if (PacmanMaze.IsNearCenter(transform.X, transform.Y, cell))
@@ -243,12 +332,8 @@ public sealed class PacmanStepSystem : BaseSystem<World, float>
                 facing.Current = (int)PickDirection(cell, facing.CurrentDirection, target, mode);
             }
 
-            var speed = mode switch
-            {
-                PacmanGhostMode.Frightened => PacmanConfig.FrightenedGhostSpeed,
-                PacmanGhostMode.Eyes => PacmanConfig.EyesSpeed,
-                _ => PacmanConfig.GhostSpeed,
-            };
+            var speed = GetGhostSpeed(ghostState, mode, stats, level, cell);
+
             Advance(ref transform, facing.CurrentDirection, speed, dt, cell);
             World.Set(ghost, transform);
             World.Set(ghost, facing);
@@ -258,11 +343,62 @@ public sealed class PacmanStepSystem : BaseSystem<World, float>
         }
     }
 
-    private void ConsumePellet(Entity player, ref PacmanStats stats)
+    private float GetGhostSpeed(
+        PacmanGhostState state,
+        PacmanGhostMode mode,
+        in PacmanStats stats,
+        PacmanLevelProps level,
+        PacmanCell cell)
+    {
+        if (mode == PacmanGhostMode.Frightened)
+            return PacmanLevels.Speed(level.FrightGhostSpeedPct);
+
+        if (mode == PacmanGhostMode.Eyes)
+            return PacmanConfig.EyesSpeed;
+
+        // Tunnel slowdown
+        if (PacmanMaze.IsTunnel(cell))
+            return PacmanLevels.Speed(level.GhostTunnelSpeedPct);
+
+        // Elroy: Blinky speeds up when few pellets remain
+        if (state.GhostRole == PacmanGhostRole.Blinky)
+        {
+            if (stats.PelletsRemaining <= level.Elroy2DotsLeft)
+                return PacmanLevels.Speed(level.Elroy2SpeedPct);
+            if (stats.PelletsRemaining <= level.Elroy1DotsLeft)
+                return PacmanLevels.Speed(level.Elroy1SpeedPct);
+        }
+
+        return PacmanLevels.Speed(level.GhostSpeedPct);
+    }
+
+    private void ConsumePellet(Entity player, ref PacmanStats stats, PacmanLevelProps level)
     {
         var transform = World.Get<PacmanTransform>(player);
         var cell = PacmanMaze.CellFromPosition(transform.X, transform.Y);
         if (!PacmanMaze.IsNearCenter(transform.X, transform.Y, cell)) return;
+
+        // Fruit collision
+        var fruitEntity = FindFruit();
+        if (fruitEntity != Entity.Null)
+        {
+            var fruit = World.Get<PacmanFruit>(fruitEntity);
+            if (fruit.Visible)
+            {
+                var fruitCell = PacmanMaze.CellFromPosition(
+                    World.Get<PacmanTransform>(fruitEntity).X,
+                    World.Get<PacmanTransform>(fruitEntity).Y);
+                if (fruitCell == cell)
+                {
+                    stats.Score += level.FruitPoints;
+                    stats.AteFruit = true;
+                    fruit.Visible = false;
+                    fruit.RemainingSeconds = 0f;
+                    World.Set(fruitEntity, fruit);
+                    AwardExtraLife(ref stats);
+                }
+            }
+        }
 
         var pellet = FindPelletAt(cell);
         if (pellet == Entity.Null) return;
@@ -270,49 +406,147 @@ public sealed class PacmanStepSystem : BaseSystem<World, float>
         var power = World.Get<PacmanPellet>(pellet).Power;
         World.Destroy(pellet);
         stats.PelletsRemaining--;
+        stats.DotsEaten++;
         stats.Score += power ? PacmanConfig.PowerPelletScore : PacmanConfig.PelletScore;
         stats.AtePellet = !power;
         stats.AtePowerPellet = power;
+        stats.HouseIdleSeconds = 0f;
+
+        AwardExtraLife(ref stats);
+        IncrementHouseDotCounters(ref stats);
 
         if (power)
         {
-            stats.Frightened = true;
-            stats.FrightenedRemaining = PacmanConfig.FrightenedDurationSeconds;
-            stats.GhostChain = 0;
-            foreach (var ghost in FindGhosts())
+            if (level.FrightSeconds > 0f)
             {
-                var state = World.Get<PacmanGhostState>(ghost);
-                if (state.GhostMode == PacmanGhostMode.Eyes) continue;
-                state.Mode = (int)PacmanGhostMode.Frightened;
-                World.Set(ghost, state);
-                var facing = World.Get<PacmanFacing>(ghost);
-                facing.Current = (int)PacmanMaze.Opposite(facing.CurrentDirection);
-                World.Set(ghost, facing);
+                stats.Frightened = true;
+                stats.FrightenedRemaining = level.FrightSeconds;
+                stats.FrightenedDuration = level.FrightSeconds;
+                stats.FrightFlashes = level.FrightFlashes;
+                stats.GhostChain = 0;
+                foreach (var ghost in FindGhosts())
+                {
+                    var state = World.Get<PacmanGhostState>(ghost);
+                    if (state.GhostMode == PacmanGhostMode.Eyes) continue;
+                    if (state.IsInHouse) continue;
+                    state.Mode = (int)PacmanGhostMode.Frightened;
+                    World.Set(ghost, state);
+                    var gFacing = World.Get<PacmanFacing>(ghost);
+                    gFacing.Current = (int)PacmanMaze.Opposite(gFacing.CurrentDirection);
+                    World.Set(ghost, gFacing);
+                }
+            }
+            else
+            {
+                foreach (var ghost in FindGhosts())
+                {
+                    var state = World.Get<PacmanGhostState>(ghost);
+                    if (state.GhostMode == PacmanGhostMode.Eyes || state.IsInHouse) continue;
+                    var gFacing = World.Get<PacmanFacing>(ghost);
+                    gFacing.Current = (int)PacmanMaze.Opposite(gFacing.CurrentDirection);
+                    World.Set(ghost, gFacing);
+                }
             }
         }
     }
 
-    private void HandleCollisions(Entity player, ref PacmanStats stats)
+    private void AwardExtraLife(ref PacmanStats stats)
+    {
+        if (stats.ExtraLivesAwarded > 0) return;
+        if (stats.Score >= PacmanLevels.ExtraLifeAtScore)
+        {
+            stats.Lives++;
+            stats.ExtraLivesAwarded++;
+        }
+    }
+
+    private void IncrementHouseDotCounters(ref PacmanStats stats)
+    {
+        if (stats.GlobalDotActive)
+        {
+            stats.GlobalDotCount++;
+            PacmanGhostRole? releaseThreshold = stats.GlobalDotCount switch
+            {
+                7 => PacmanGhostRole.Pinky,
+                17 => PacmanGhostRole.Inky,
+                32 => PacmanGhostRole.Clyde,
+                _ => null,
+            };
+            if (releaseThreshold.HasValue)
+            {
+                ReleaseGhostByRole(releaseThreshold.Value);
+                if (stats.GlobalDotCount >= 32 && IsGhostInHouse(PacmanGhostRole.Clyde))
+                {
+                    stats.GlobalDotActive = false;
+                }
+            }
+            return;
+        }
+
+        foreach (var ghost in FindGhosts())
+        {
+            var state = World.Get<PacmanGhostState>(ghost);
+            if (!state.IsInHouse || state.GhostRole == PacmanGhostRole.Blinky) continue;
+
+            state.DotCount++;
+            var limit = PacmanLevels.HouseDotLimit(stats.Level, state.GhostRole);
+            if (limit > 0 && state.DotCount >= limit)
+            {
+                state.InHouse = 0;
+            }
+            World.Set(ghost, state);
+            if (!state.IsInHouse) return;
+        }
+    }
+
+    private void ReleaseGhostByRole(PacmanGhostRole role)
+    {
+        foreach (var ghost in FindGhosts())
+        {
+            var state = World.Get<PacmanGhostState>(ghost);
+            if (state.GhostRole == role && state.IsInHouse)
+            {
+                state.InHouse = 0;
+                World.Set(ghost, state);
+                return;
+            }
+        }
+    }
+
+    private bool IsGhostInHouse(PacmanGhostRole role)
+    {
+        foreach (var ghost in FindGhosts())
+        {
+            var state = World.Get<PacmanGhostState>(ghost);
+            if (state.GhostRole == role) return state.IsInHouse;
+        }
+        return false;
+    }
+
+    private void HandleCollisions(Entity player, ref PacmanStats stats, PacmanLevelProps level)
     {
         var playerTransform = World.Get<PacmanTransform>(player);
         var playerCell = PacmanMaze.CellFromPosition(playerTransform.X, playerTransform.Y);
 
         foreach (var ghost in FindGhosts())
         {
+            var ghostState = World.Get<PacmanGhostState>(ghost);
+            if (ghostState.IsInHouse) continue;
+
             var ghostTransform = World.Get<PacmanTransform>(ghost);
             if (PacmanMaze.CellFromPosition(ghostTransform.X, ghostTransform.Y) != playerCell) continue;
 
-            var state = World.Get<PacmanGhostState>(ghost);
-            if (state.GhostMode == PacmanGhostMode.Eyes) continue;
+            if (ghostState.GhostMode == PacmanGhostMode.Eyes) continue;
 
-            if (state.GhostMode == PacmanGhostMode.Frightened)
+            if (ghostState.GhostMode == PacmanGhostMode.Frightened)
             {
                 var multiplier = 1 << Math.Min(stats.GhostChain, 3);
                 stats.Score += PacmanConfig.GhostScore * multiplier;
                 stats.GhostChain++;
                 stats.GhostEaten = true;
-                state.Mode = (int)PacmanGhostMode.Eyes;
-                World.Set(ghost, state);
+                ghostState.Mode = (int)PacmanGhostMode.Eyes;
+                World.Set(ghost, ghostState);
+                AwardExtraLife(ref stats);
                 continue;
             }
 
@@ -320,6 +554,8 @@ public sealed class PacmanStepSystem : BaseSystem<World, float>
             stats.Died = true;
             stats.Frightened = false;
             stats.FrightenedRemaining = 0f;
+            stats.FrightenedDuration = 0f;
+            stats.FrightFlashes = 0;
             stats.GhostChain = 0;
             if (stats.Lives <= 0)
             {
@@ -329,6 +565,9 @@ public sealed class PacmanStepSystem : BaseSystem<World, float>
             }
             else
             {
+                stats.GlobalDotActive = true;
+                stats.GlobalDotCount = 0;
+                stats.HouseIdleSeconds = 0f;
                 ResetActors(stats);
             }
 
@@ -448,18 +687,6 @@ public sealed class PacmanStepSystem : BaseSystem<World, float>
     private static PacmanGhostMode BaseMode(in PacmanStats stats) =>
         stats.ModeIndex % 2 == 0 ? PacmanGhostMode.Scatter : PacmanGhostMode.Chase;
 
-    private static readonly float[] ModeDurations =
-    [
-        PacmanConfig.ModeFirstScatterSeconds,
-        PacmanConfig.ModeFirstChaseSeconds,
-        PacmanConfig.ModeSecondScatterSeconds,
-        PacmanConfig.ModeSecondChaseSeconds,
-        PacmanConfig.ModeThirdScatterSeconds,
-        PacmanConfig.ModeThirdChaseSeconds,
-        PacmanConfig.ModeFourthScatterSeconds,
-        PacmanConfig.ModeFourthChaseSeconds,
-    ];
-
     private static void Advance(
         ref PacmanTransform transform,
         PacmanDirection direction,
@@ -486,7 +713,6 @@ public sealed class PacmanStepSystem : BaseSystem<World, float>
         {
             if (World.IsAlive(entity) && World.Has<PacmanStats>(entity)) return entity;
         }
-
         return Entity.Null;
     }
 
@@ -498,7 +724,6 @@ public sealed class PacmanStepSystem : BaseSystem<World, float>
         {
             if (World.IsAlive(entity) && World.Has<PacmanPlayer>(entity)) return entity;
         }
-
         return Entity.Null;
     }
 
@@ -511,7 +736,6 @@ public sealed class PacmanStepSystem : BaseSystem<World, float>
         {
             if (World.IsAlive(entity) && World.Has<PacmanGhostState>(entity)) ghosts.Add(entity);
         }
-
         ghosts.Sort((left, right) => World.Get<PacmanGhostState>(left).Role.CompareTo(World.Get<PacmanGhostState>(right).Role));
         return ghosts.ToArray();
     }
@@ -526,8 +750,17 @@ public sealed class PacmanStepSystem : BaseSystem<World, float>
             var transform = World.Get<PacmanTransform>(entity);
             if (PacmanMaze.CellFromPosition(transform.X, transform.Y) == cell) return entity;
         }
-
         return Entity.Null;
     }
 
+    private Entity FindFruit()
+    {
+        var entities = new Entity[World.Size];
+        World.GetEntities(new QueryDescription(), entities.AsSpan());
+        foreach (var entity in entities)
+        {
+            if (World.IsAlive(entity) && World.Has<PacmanFruit>(entity)) return entity;
+        }
+        return Entity.Null;
+    }
 }

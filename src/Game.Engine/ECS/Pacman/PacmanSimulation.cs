@@ -21,7 +21,8 @@ public readonly record struct PacmanSpriteState(
     bool Visible,
     byte R,
     byte G,
-    byte B);
+    byte B,
+    int FruitItem);
 
 /// <summary>One batched Pacman snapshot. Edge flags are consumed by the client once.</summary>
 public sealed partial record PacmanRenderSignal(
@@ -40,7 +41,13 @@ public sealed partial record PacmanRenderSignal(
     bool AtePowerPellet,
     bool GhostEaten,
     bool Died,
-    bool LevelUp);
+    bool LevelUp,
+    int FruitItem,
+    bool FruitVisible,
+    bool AteFruit,
+    float FrightenedRemaining,
+    float FrightenedDuration,
+    int FrightFlashes);
 
 public partial record PacmanRenderSignal
 {
@@ -203,6 +210,18 @@ public sealed class PacmanSimulation : IDisposable
         stopwatch.Stop();
         _seq++;
         var snapshot = BuildSnapshot();
+
+        // Read fruit state for the signal
+        var fruitEntity = FindFruit();
+        var fruitItem = 0;
+        var fruitVisible = false;
+        if (fruitEntity != Entity.Null)
+        {
+            var fruit = _world.Get<PacmanFruit>(fruitEntity);
+            fruitItem = fruit.Item;
+            fruitVisible = fruit.Visible;
+        }
+
         var signal = new PacmanRenderSignal(
             _seq,
             snapshot.Count,
@@ -219,7 +238,13 @@ public sealed class PacmanSimulation : IDisposable
             stats.AtePowerPellet,
             stats.GhostEaten,
             stats.Died,
-            stats.LevelUp)
+            stats.LevelUp,
+            fruitItem,
+            fruitVisible,
+            stats.AteFruit,
+            stats.FrightenedRemaining,
+            stats.FrightenedDuration,
+            stats.FrightFlashes)
         { Epoch = _epoch };
 
         stats.AtePellet = false;
@@ -227,6 +252,7 @@ public sealed class PacmanSimulation : IDisposable
         stats.GhostEaten = false;
         stats.Died = false;
         stats.LevelUp = false;
+        stats.AteFruit = false;
         _world.Set(statsEntity, stats);
         _renderTransport.Push(signal);
     }
@@ -236,11 +262,29 @@ public sealed class PacmanSimulation : IDisposable
         stats.Level++;
         stats.PelletsRemaining = PacmanMaze.PelletCount;
         stats.ModeIndex = 0;
-        stats.ModeRemaining = PacmanConfig.ModeFirstScatterSeconds;
+        var modePattern = PacmanLevels.ModePattern(stats.Level);
+        stats.ModeRemaining = modePattern[0];
         stats.Frightened = false;
         stats.FrightenedRemaining = 0f;
+        stats.FrightenedDuration = 0f;
+        stats.FrightFlashes = 0;
         stats.GhostChain = 0;
         stats.LevelUp = true;
+        stats.DotsEaten = 0;
+        stats.FruitShownCount = 0;
+        stats.GlobalDotActive = false;
+        stats.GlobalDotCount = 0;
+        stats.HouseIdleSeconds = 0f;
+
+        // Reset fruit entity
+        var fruitEntity = FindFruit();
+        if (fruitEntity != Entity.Null)
+        {
+            var fruit = _world.Get<PacmanFruit>(fruitEntity);
+            fruit.Visible = false;
+            fruit.RemainingSeconds = 0f;
+            _world.Set(fruitEntity, fruit);
+        }
 
         DestroyPellets();
         CreatePellets();
@@ -276,10 +320,20 @@ public sealed class PacmanSimulation : IDisposable
             new PacmanSprite(PacmanSpriteKind.Player, 255, 255, 0),
             new PacmanPlayer());
 
-        CreateGhost(PacmanGhostRole.Blinky, new PacmanCell(13, 11), PacmanDirection.Left, 220, 40, 40);
-        CreateGhost(PacmanGhostRole.Pinky, new PacmanCell(15, 11), PacmanDirection.Right, 255, 184, 255);
-        CreateGhost(PacmanGhostRole.Inky, new PacmanCell(12, 17), PacmanDirection.Left, 0, 220, 220);
-        CreateGhost(PacmanGhostRole.Clyde, new PacmanCell(16, 17), PacmanDirection.Right, 255, 184, 82);
+        CreateGhost(PacmanGhostRole.Blinky, new PacmanCell(13, 11), PacmanDirection.Left, 220, 40, 40, inHouse: false);
+        CreateGhost(PacmanGhostRole.Pinky, new PacmanCell(15, 11), PacmanDirection.Right, 255, 184, 255, inHouse: true);
+        CreateGhost(PacmanGhostRole.Inky, new PacmanCell(12, 17), PacmanDirection.Left, 0, 220, 220, inHouse: true);
+        CreateGhost(PacmanGhostRole.Clyde, new PacmanCell(16, 17), PacmanDirection.Right, 255, 184, 82, inHouse: true);
+
+        // Fruit entity (hidden until fruit session triggers)
+        var fruitCenter = PacmanMaze.CenterOf(new PacmanCell(14, 17));
+        _world.Create(
+            new RenderId(FirstPelletRenderId - 1),
+            new PacmanTransform(fruitCenter.X, fruitCenter.Y),
+            new PacmanMotion(),
+            new PacmanFacing(PacmanDirection.None),
+            new PacmanSprite(PacmanSpriteKind.Fruit, 255, 0, 0, visible: false),
+            new PacmanFruit());
 
         CreatePellets();
     }
@@ -290,7 +344,8 @@ public sealed class PacmanSimulation : IDisposable
         PacmanDirection direction,
         byte r,
         byte g,
-        byte b)
+        byte b,
+        bool inHouse = false)
     {
         var center = PacmanMaze.CenterOf(cell);
         var kind = role switch
@@ -308,7 +363,7 @@ public sealed class PacmanSimulation : IDisposable
             new PacmanMotion(),
             new PacmanFacing(direction),
             new PacmanSprite(kind, r, g, b),
-            new PacmanGhostState(role, PacmanGhostMode.Scatter, cell));
+            new PacmanGhostState(role, PacmanGhostMode.Scatter, cell, inHouse));
     }
 
     private void CreatePellets()
@@ -374,6 +429,10 @@ public sealed class PacmanSimulation : IDisposable
             ? _world.Get<PacmanGhostState>(entity).GhostMode
             : PacmanGhostMode.Scatter;
 
+        var fruitItem = _world.Has<PacmanFruit>(entity)
+            ? _world.Get<PacmanFruit>(entity).Item
+            : 0;
+
         return new PacmanSpriteState(
             _world.Get<RenderId>(entity).Id,
             transform.X,
@@ -389,12 +448,13 @@ public sealed class PacmanSimulation : IDisposable
             sprite.Visible,
             sprite.R,
             sprite.G,
-            sprite.B);
+            sprite.B,
+            fruitItem);
     }
 
     private static int RenderLayer(PacmanSpriteKind kind) => kind switch
     {
-        PacmanSpriteKind.Pellet or PacmanSpriteKind.PowerPellet => 0,
+        PacmanSpriteKind.Pellet or PacmanSpriteKind.PowerPellet or PacmanSpriteKind.Fruit => 0,
         PacmanSpriteKind.Blinky or PacmanSpriteKind.Pinky or PacmanSpriteKind.Inky or PacmanSpriteKind.Clyde => 1,
         _ => 2,
     };
@@ -424,6 +484,18 @@ public sealed class PacmanSimulation : IDisposable
         foreach (var entity in entities)
         {
             if (_world.IsAlive(entity) && _world.Has<PacmanStats>(entity)) return entity;
+        }
+
+        return Entity.Null;
+    }
+
+    private Entity FindFruit()
+    {
+        var entities = new Entity[_world.Size];
+        _world.GetEntities(new QueryDescription(), entities.AsSpan());
+        foreach (var entity in entities)
+        {
+            if (_world.IsAlive(entity) && _world.Has<PacmanFruit>(entity)) return entity;
         }
 
         return Entity.Null;
