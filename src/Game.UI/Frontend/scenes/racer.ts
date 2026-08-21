@@ -251,9 +251,81 @@ function formatTime(value: number): string {
         : `${seconds}.${tenths}`;
 }
 
-function clearChildren(container: Container): void {
-    const children = container.removeChildren();
-    for (const child of children) child.destroy();
+/**
+ * Sprite object pool — allocates once, reuses across frames.
+ * Eliminates the30,000+ Sprite allocs/sec that caused GC lag.
+ */
+class SpritePool {
+    private readonly sprites: Sprite[] = [];
+    private readonly masks: Graphics[] = [];
+    private cursor = 0;
+    private readonly container: Container;
+    private readonly atlas: Texture;
+
+    constructor(container: Container, atlas: Texture, initialSize: number) {
+        this.container = container;
+        this.atlas = atlas;
+        for (let i = 0; i < initialSize; i++) {
+            this.createEntry();
+        }
+    }
+
+    private createEntry(): void {
+        const mask = new Graphics();
+        this.masks.push(mask);
+        const sprite = new Sprite(this.atlas);
+        sprite.visible = false;
+        sprite.mask = mask;
+        this.container.addChild(sprite);
+        this.sprites.push(sprite);
+    }
+
+    acquire(
+        texture: Texture,
+        x: number,
+        y: number,
+        width: number,
+        height: number,
+        clipY: number,
+    ): void {
+        if (this.cursor >= this.sprites.length) this.createEntry();
+        const sprite = this.sprites[this.cursor];
+        const mask = this.masks[this.cursor];
+        this.cursor++;
+
+        sprite.texture = texture;
+        sprite.x = x;
+        sprite.y = y;
+        sprite.width = width;
+        sprite.height = height;
+        sprite.visible = true;
+        sprite.alpha = 1;
+        sprite.tint = 0xffffff;
+
+        const maskY = Math.min(y, clipY);
+        const maskH = Math.max(0, clipY - maskY);
+        if (maskH > 0 && width > 0) {
+            mask.clear().rect(x, maskY, width, maskH).fill(0xffffff);
+        } else {
+            mask.clear();
+        }
+    }
+
+    finish(): void {
+        for (let i = this.cursor; i < this.sprites.length; i++) {
+            this.sprites[i].visible = false;
+            this.sprites[i].mask = null;
+            this.masks[i].clear();
+        }
+        this.cursor = 0;
+    }
+
+    destroy(): void {
+        for (const sprite of this.sprites) sprite.destroy();
+        for (const mask of this.masks) mask.destroy();
+        this.sprites.length = 0;
+        this.masks.length = 0;
+    }
 }
 
 interface SettingsPanel {
@@ -375,6 +447,7 @@ export const racerScene: SceneBuilder = async (app, params) => {
     let treeOffset = 0;
     let previousPosition = player.z;
     let stepMs = 1000 / 60;
+    let muted = false;
     const playerInterpolation = new SnapshotBuffer<RacerPlayerSample>();
     const carInterpolation = new SnapshotBuffer<RacerCarState>();
     let lastEpoch: number | null = null;
@@ -405,12 +478,28 @@ export const racerScene: SceneBuilder = async (app, params) => {
         return layer;
     });
 
-    const hud = new Text({
-        text: '0 mph   Lap: 0.0',
-        style: new TextStyle({ fontFamily: 'Arial', fontSize: 18, fontWeight: 'bold', fill: '#ffffff' }),
+    // --- HUD overlay: four fields matching original game.html layout --------
+    const hudStyle = new TextStyle({
+        fontFamily: 'Arial, sans-serif',
+        fontSize: 14,
+        fontWeight: 'bold',
+        fill: 0xffffff,
+        dropShadow: { color: 0x000000, distance: 1 },
     });
-    hud.position.set(16, 12);
-    app.stage.addChild(hud);
+    const hudSpeed = new Text({ text: '0 mph', style: hudStyle });
+    const hudTime = new Text({ text: 'Time: 0.0', style: hudStyle });
+    const hudLast = new Text({ text: 'Last: --', style: hudStyle });
+    const hudFast = new Text({ text: 'Fastest: --', style: new TextStyle({
+        fontFamily: 'Arial, sans-serif',
+        fontSize: 14,
+        fontWeight: 'bold',
+        fill: 0x000000,
+    }) });
+    hudSpeed.visible = false;
+    hudTime.visible = false;
+    hudLast.visible = false;
+    hudFast.visible = false;
+    app.stage.addChild(hudSpeed, hudTime, hudLast, hudFast);
 
     const postCommand = async (path: string): Promise<void> => {
         const response = await fetch(path, { method: 'POST' });
@@ -552,6 +641,22 @@ export const racerScene: SceneBuilder = async (app, params) => {
         'padding:.4rem .6rem;cursor:pointer;z-index:7;';
     document.body.appendChild(restartButton);
 
+    // --- Mute button (matches original game.html #mute) ----------------------
+    const muteButton = document.createElement('button');
+    muteButton.type = 'button';
+    muteButton.textContent = '\u{1F50A}';
+    muteButton.title = 'Toggle sound';
+    muteButton.style.cssText =
+        'position:fixed;top:12px;right:12px;width:36px;height:36px;font-size:20px;' +
+        'border:1px solid rgba(148,163,184,.45);border-radius:.45rem;background:rgba(2,6,23,.9);' +
+        'color:#e2e8f0;cursor:pointer;z-index:7;display:grid;place-items:center;';
+    muteButton.addEventListener('click', () => {
+        muted = !muted;
+        muteButton.textContent = muted ? '\u{1F507}' : '\u{1F50A}';
+        sound.volume(SOUND_ALIAS, muted ? 0 : 0.05);
+    });
+    document.body.appendChild(muteButton);
+
     const startGame = (): void => {
         if (started) return;
         void postCommand('/api/racer/resume')
@@ -656,7 +761,7 @@ export const racerScene: SceneBuilder = async (app, params) => {
     };
 
     const drawSprite = (
-        container: Container,
+        pool: SpritePool,
         kind: number,
         scale: number,
         x: number,
@@ -675,25 +780,77 @@ export const racerScene: SceneBuilder = async (app, params) => {
         const visibleHeight = Math.min(spriteHeight, Math.max(0, clipY - top));
         if (visibleHeight <= 0 || spriteWidth <= 0) return;
 
-        const sprite = new Sprite(texture);
-        sprite.x = left;
-        sprite.y = top;
-        sprite.width = spriteWidth;
-        sprite.height = visibleHeight;
-        container.addChild(sprite);
+        pool.acquire(texture, left, top, spriteWidth, visibleHeight, clipY);
     };
 
-    const updateBackground = (logicalWidth: number, logicalHeight: number, playerY: number): void => {
+    // --- Sprite pools (pre-allocated, reused across frames) -------------------
+    const sceneryPool = new SpritePool(sceneryContainer, atlas, 128);
+    const carPool = new SpritePool(carContainer, atlas, 32);
+    const playerPool = new SpritePool(playerContainer, atlas, 1);
+
+    // --- Resize handling (ResizeObserver) ------------------------------------
+    let cachedLogicalWidth = Math.round(app.screen.width / settings.resolutionScale);
+    let cachedLogicalHeight = Math.round(app.screen.height / settings.resolutionScale);
+    const recalcSize = (): void => {
+        cachedLogicalWidth = Math.round(app.screen.width / settings.resolutionScale);
+        cachedLogicalHeight = Math.round(app.screen.height / settings.resolutionScale);
         world.scale.set(settings.resolutionScale);
         for (const layer of backgroundLayers) {
-            layer.width = logicalWidth;
-            layer.height = logicalHeight;
-            layer.tileScale.set(1, logicalHeight / 480);
+            layer.width = cachedLogicalWidth;
+            layer.height = cachedLogicalHeight;
+            layer.tileScale.set(1, cachedLogicalHeight / 480);
         }
-        backgroundLayers[0].tilePosition.set(-skyOffset * 1280, logicalHeight * 0.001 * playerY);
-        backgroundLayers[1].tilePosition.set(-hillOffset * 1280, logicalHeight * 0.002 * playerY);
-        backgroundLayers[2].tilePosition.set(-treeOffset * 1280, logicalHeight * 0.003 * playerY);
     };
+    const resizeObserver = new ResizeObserver(() => recalcSize());
+    resizeObserver.observe(app.canvas as HTMLCanvasElement);
+
+    // --- Mobile touch controls ------------------------------------------------
+    let leftDown = false;
+    let rightDown = false;
+    let fasterDown = false;
+    let slowerDown = false;
+    const activeTouches = new Map<number, { action: 'left' | 'right' | 'faster' | 'slower' }>();
+
+    const resolveTouchAction = (touch: Touch): 'left' | 'right' | 'faster' | 'slower' => {
+        const rect = (app.canvas as HTMLCanvasElement).getBoundingClientRect();
+        const relX = (touch.clientX - rect.left) / rect.width;
+        const relY = (touch.clientY - rect.top) / rect.height;
+        if (relX < 0.5) return relY < 0.5 ? 'left' : 'right';
+        return relY < 0.5 ? 'faster' : 'slower';
+    };
+
+    const recalcTouchInput = (): void => {
+        leftDown = rightDown = fasterDown = slowerDown = false;
+        for (const { action } of activeTouches.values()) {
+            if (action === 'left') leftDown = true;
+            else if (action === 'right') rightDown = true;
+            else if (action === 'faster') fasterDown = true;
+            else slowerDown = true;
+        }
+    };
+
+    const onTouchStart = (e: TouchEvent): void => {
+        e.preventDefault();
+        for (let i = 0; i < e.changedTouches.length; i++) {
+            const t = e.changedTouches[i];
+            activeTouches.set(t.identifier, { action: resolveTouchAction(t) });
+        }
+        recalcTouchInput();
+        postInput();
+    };
+    const onTouchEnd = (e: TouchEvent): void => {
+        e.preventDefault();
+        for (let i = 0; i < e.changedTouches.length; i++) {
+            activeTouches.delete(e.changedTouches[i].identifier);
+        }
+        recalcTouchInput();
+        postInput();
+    };
+    const onTouchCancel = onTouchEnd;
+    const canvas = app.canvas as HTMLCanvasElement;
+    canvas.addEventListener('touchstart', onTouchStart, { passive: false });
+    canvas.addEventListener('touchend', onTouchEnd, { passive: false });
+    canvas.addEventListener('touchcancel', onTouchCancel, { passive: false });
 
     const render = (): void => {
         if (segments.length === 0) return;
@@ -742,11 +899,15 @@ export const racerScene: SceneBuilder = async (app, params) => {
         let dx = -(segments[normalizedBaseIndex]?.curve ?? 0) * basePercent;
         const projectedSegments = new Map<number, ProjectedSegment>();
 
-        updateBackground(width, height, playerY);
         roadGraphics.clear();
-        clearChildren(sceneryContainer);
-        clearChildren(carContainer);
-        clearChildren(playerContainer);
+        sceneryPool.finish();
+        carPool.finish();
+        playerPool.finish();
+
+        // Parallax background scrolling (was in updateBackground)
+        backgroundLayers[0].tilePosition.set(-skyOffset * 1280, height * 0.001 * playerY);
+        backgroundLayers[1].tilePosition.set(-hillOffset * 1280, height * 0.002 * playerY);
+        backgroundLayers[2].tilePosition.set(-treeOffset * 1280, height * 0.003 * playerY);
 
         for (let n = 0; n < settings.drawDistance; n++) {
             const segment = segments[(normalizedBaseIndex + n) % segments.length];
@@ -788,12 +949,12 @@ export const racerScene: SceneBuilder = async (app, params) => {
                 const carX = interpolate(projected.p1.x, projected.p2.x, car.percent) +
                     carScale * car.offset * settings.roadWidth * width / 2;
                 const carY = interpolate(projected.p1.y, projected.p2.y, car.percent);
-                drawSprite(carContainer, car.spriteKind, carScale, carX, carY, -0.5, projected.clip, width);
+                drawSprite(carPool, car.spriteKind, carScale, carX, carY, -0.5, projected.clip, width);
             }
 
             for (const scenerySprite of sceneryBySegment.get(segment.index) ?? []) {
                 drawSprite(
-                    sceneryContainer,
+                    sceneryPool,
                     scenerySprite.spriteKind,
                     projected.p1.scale,
                     projected.p1.x + projected.p1.scale * scenerySprite.offset * settings.roadWidth * width / 2,
@@ -814,15 +975,29 @@ export const racerScene: SceneBuilder = async (app, params) => {
                     ? renderedPlayer.steer < 0 ? KIND.PLAYER_UPHILL_LEFT : renderedPlayer.steer > 0 ? KIND.PLAYER_UPHILL_RIGHT : KIND.PLAYER_UPHILL_STRAIGHT
                     : renderedPlayer.steer < 0 ? KIND.PLAYER_LEFT : renderedPlayer.steer > 0 ? KIND.PLAYER_RIGHT : KIND.PLAYER_STRAIGHT;
                 const bounce = 1.5 * Math.random() * (renderedPlayer.speed / 60000) * settings.resolutionScale;
-                drawSprite(playerContainer, playerKind, playerScale, width / 2, playerScreenY + bounce,
+                drawSprite(playerPool, playerKind, playerScale, width / 2, playerScreenY + bounce,
                     -0.5, height, width);
             }
         }
 
-        hud.text = `${Math.round(5 * Math.round(renderedPlayer.speed / 500))} mph   ` +
-            `Time: ${formatTime(renderedPlayer.currentLapTime)}   Lap: ${renderedPlayer.lap}` +
-            (renderedPlayer.lastLapTime > 0 ? `   Last: ${formatTime(renderedPlayer.lastLapTime)}` : '');
-        hud.position.set(16, 12);
+        // HUD update (4 fields, matching original game.html)
+        const mph = Math.round(5 * Math.round(renderedPlayer.speed / 500));
+        hudSpeed.text = `${mph} mph`;
+        hudTime.text = `Time: ${formatTime(renderedPlayer.currentLapTime)}`;
+        hudLast.text = renderedPlayer.lastLapTime > 0 ? `Last: ${formatTime(renderedPlayer.lastLapTime)}` : '';
+        hudFast.text = `Fastest: ${formatTime(renderedPlayer.fastLapTime)}`;
+        const barY = cachedLogicalHeight * settings.resolutionScale - 32;
+        hudSpeed.position.set(cachedLogicalWidth * settings.resolutionScale - 100, barY);
+        hudTime.position.set(16, barY);
+        hudLast.position.set(180, barY);
+        hudFast.position.set(cachedLogicalWidth * settings.resolutionScale / 2 - 60, barY);
+        hudSpeed.visible = true;
+        hudTime.visible = true;
+        hudLast.visible = renderedPlayer.lastLapTime > 0;
+        hudFast.visible = true;
+        // Gold flash on fastest lap (matches original .fastest CSS)
+        const isFastest = renderedPlayer.lastLapTime > 0 && renderedPlayer.lastLapTime <= renderedPlayer.fastLapTime;
+        hudFast.style.fill = isFastest ? 0xffd700 : 0x000000;
         const viewport = document.getElementById('pixi-viewport');
         viewport?.setAttribute('data-racer-bounds', `${Math.round(width)}x${Math.round(height)}`);
     };
@@ -860,10 +1035,6 @@ export const racerScene: SceneBuilder = async (app, params) => {
         }).catch((error: unknown) => console.error('[pixi-debug] racer input failed:', error));
     };
 
-    let leftDown = false;
-    let rightDown = false;
-    let fasterDown = false;
-    let slowerDown = false;
     const setKey = (event: KeyboardEvent, down: boolean): boolean => {
         switch (event.key) {
             case 'ArrowLeft':
@@ -937,15 +1108,24 @@ export const racerScene: SceneBuilder = async (app, params) => {
         stream?.close();
         window.removeEventListener('keydown', onKeyDown);
         window.removeEventListener('keyup', onKeyUp);
+        canvas.removeEventListener('touchstart', onTouchStart);
+        canvas.removeEventListener('touchend', onTouchEnd);
+        canvas.removeEventListener('touchcancel', onTouchCancel);
+        resizeObserver.disconnect();
         app.ticker.remove(render);
         sound.stop(SOUND_ALIAS);
         panel.element.remove();
         configButton.remove();
         overlay.remove();
         restartButton.remove();
-        clearChildren(sceneryContainer);
-        clearChildren(carContainer);
-        clearChildren(playerContainer);
+        muteButton.remove();
+        sceneryPool.destroy();
+        carPool.destroy();
+        playerPool.destroy();
+        hudSpeed.destroy();
+        hudTime.destroy();
+        hudLast.destroy();
+        hudFast.destroy();
         for (const texture of textureCache.values()) texture.destroy();
         for (const texture of layerTextures) texture.destroy();
     };
