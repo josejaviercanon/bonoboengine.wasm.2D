@@ -1,11 +1,12 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
 
-// Compile-time render-source flag (ADR-007): 'sse' (default — Game.Web
-// static-SSR bridge) or 'local-buffer' (`vite build --mode local` —
-// co-located Game.Wasm host, Phase 2/3). `define` replaces the identifier
-// before bundling so the unused transport branch is tree-shaken away.
-const renderSource = (mode: string) => (mode === 'wasm' ? 'local-buffer' : 'sse');
+// Compile-time render-source flag (ADR-007): 'local-buffer' (DEFAULT —
+// co-located Game.Wasm host, matches the C# SINGLE_PLAYER_LOCAL default) or
+// 'sse' (`vite build --mode web` — Game.Web static-SSR bridge, multiplayer).
+// `define` replaces the identifier before bundling so the unused transport
+// branch is tree-shaken away. `fetch` POST ships only in 'web' mode bundles.
+const renderSource = (mode: string) => (mode === 'web' ? 'sse' : 'local-buffer');
 
 export default defineConfig(({ mode }) => ({
     define: {

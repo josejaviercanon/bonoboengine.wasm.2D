@@ -3,7 +3,7 @@ import { sound } from '@pixi/sound';
 import type { SceneBuilder } from './types';
 import { publishCSharpStats } from '../stats/overlays';
 import { SnapshotBuffer, lerp, lerpWrapped } from './interpolation';
-import { connectSignalStream } from './signalSource';
+import { connectSignalStream, type SignalStream } from './signalSource';
 
 interface RacerSettings {
     lanes: number;
@@ -501,18 +501,19 @@ export const racerScene: SceneBuilder = async (app, params) => {
     hudFast.visible = false;
     app.stage.addChild(hudSpeed, hudTime, hudLast, hudFast);
 
+    // Assigned below once the signal transport is connected; command helpers
+    // route through it so `fetch` POST exists only in the SSE (multiplayer)
+    // branch — single-player bundles carry zero HTTP client code (ADR-007).
+    let stream: SignalStream | null = null;
+
     const postCommand = async (path: string): Promise<void> => {
-        const response = await fetch(path, { method: 'POST' });
-        if (!response.ok) throw new Error(`${path} returned ${response.status}`);
+        if (!stream) throw new Error(`signal stream not connected (${path})`);
+        await stream.postCommand(path);
     };
 
     const postConfig = async (next: RacerSettings): Promise<void> => {
-        const response = await fetch('/api/racer/config', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(next),
-        });
-        if (!response.ok) throw new Error(`/api/racer/config returned ${response.status}`);
+        if (!stream) throw new Error('signal stream not connected (/api/racer/config)');
+        await stream.postCommand('/api/racer/config', JSON.stringify(next));
     };
 
     let tuningOpen = false;
@@ -1028,11 +1029,8 @@ export const racerScene: SceneBuilder = async (app, params) => {
     };
 
     const postInput = (): void => {
-        fetch('/api/racer/input', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ left: leftDown, right: rightDown, faster: fasterDown, slower: slowerDown }),
-        }).catch((error: unknown) => console.error('[pixi-debug] racer input failed:', error));
+        stream?.postCommand('/api/racer/input', JSON.stringify({ left: leftDown, right: rightDown, faster: fasterDown, slower: slowerDown }))
+            .catch((error: unknown) => console.error('[pixi-debug] racer input failed:', error));
     };
 
     const setKey = (event: KeyboardEvent, down: boolean): boolean => {
@@ -1081,7 +1079,7 @@ export const racerScene: SceneBuilder = async (app, params) => {
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
 
-    const stream = connectSignalStream(racer.streamUrl);
+    stream = connectSignalStream(racer.streamUrl);
     stream?.addSignalListener('racer-move', (data) => {
         try {
             const parsed: unknown = JSON.parse(data);

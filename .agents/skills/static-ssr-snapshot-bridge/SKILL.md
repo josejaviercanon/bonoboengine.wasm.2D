@@ -17,6 +17,7 @@ Authoritative rules for the `Game.Web` host and the C#↔JS boundary. Verified a
 - `AddRazorComponents()` + `UseAntiforgery()` (required even for static SSR — Razor Components endpoints carry antiforgery metadata) + `MapStaticAssets()` + `MapRazorComponents<App>().AddAdditionalAssemblies(typeof(GameView).Assembly)` (`src/Game.Web/Program.cs`).
 - Discover shared RCL routes via `AddAdditionalAssemblies` on `MapRazorComponents` **and** `Router AdditionalAssemblies` in `Components/Routes.razor` — both are required for direct HTTP requests to resolve.
 - Bootstrap PixiJS from `Components/App.razor`: load `_content/Game.UI/dist/game-bundle.iife.js` (the Vite IIFE bundle), then an inline `window.addEventListener('load', …)` reads `#pixi-viewport[data-message]` and calls `initGame('pixi-viewport')` → `renderScene(message)`.
+- The Game.Web host is the multiplayer/SSE host. Build the frontend with `npm run build:web` (Vite `--mode web`, `__RENDER_SOURCE__='sse'`). The default `npm run build` produces the local-buffer bundle for the co-located WASM host (ADR-007) — it will not work under Game.Web.
 - Ship engine→client data through SSE endpoints + HTTP POST handlers on the raw ASP.NET Core pipeline (see §2).
 
 ### Don't (forbidden on the web host)
@@ -35,7 +36,7 @@ The boundary concept is **"the simulation produced a render snapshot"**, not "an
 ### Do
 
 - **Server → client: SSE.** `GET /api/ecs/stream` and `GET /api/snake/stream` (`text/event-stream`) push batched `SpriteState[]` / snake signal JSON. Client consumes via `new EventSource(streamUrl)` + `addEventListener('sprite-move'/'snake-move', …)` (`src/Game.UI/Frontend/scenes/ecsSprites.ts`, `snake.ts`).
-- **Client → server: HTTP POST.** `POST /api/snake/{input,start,restart}` via `fetch(…, { method: 'POST' })` (`snake.ts`). The simulation validates and applies on the next tick — JS only suggests; C# is sole authority.
+- **Client → sim: `SignalStream.postCommand`.** All commands (input, start, reset, pause, config) route through `SignalStream.postCommand(path, bodyJson?)` in `src/Game.UI/Frontend/scenes/signalSource.ts` — the ONLY way a scene talks to the sim. SSE branch: `fetch POST` over the network (multiplayer). Local-buffer branch: direct in-process `LocalBufferProvider.postCommand` call, zero HTTP. Never call `fetch` from scene code.
 - **Initial payload: server-rendered attribute.** `GameView.razor` renders the engine payload into `#pixi-viewport[data-message]`; the client `load` script reads it. No circuit, no interop for the initial frame.
 - Evolve `SpriteState` (`Id, X, Y, R, G, B`) toward `TransformSnapshot` (velocity/rotation/tick) so the client can interpolate at display Hz (ADR-003 target; not yet implemented).
 - For interpolation or presentation-physics code, follow `docs/architecture/render-interpolation.md`: per-entity in-place `InterpState {prev, curr, at}` (no whole-buffer copies per push), signal-borne `stepMs`/`tickMs` (never hardcoded 16.666), shortest-path angular LERP, `dt` clamped to 1/30, Rapier world resident with one-way kinematic→dynamic coupling only.
@@ -46,6 +47,7 @@ The boundary concept is **"the simulation produced a render snapshot"**, not "an
 - ❌ `IJSRuntime` / `JSInvokable` on `Game.Web` — "no `IJSRuntime` calls (no interactivity on the web host)" (`codebase-truth.md`). `IJSRuntime` is the **MAUI Hybrid** path only, never the web host.
 - ❌ Per-entity / per-frame JS↔C# calls — 60 FPS interop saturates the marshalling boundary and breaches the frame budget (ADR-001).
 - ❌ `StateHasChanged` triggered from a JS-invocable callback — implies an interactive circuit; under static SSR there is no live client component instance to re-render. State mutations flow server→client as SSE deltas.
+- ❌ Raw `fetch(…, { method: 'POST' })` in scene code — ships HTTP client code in single-player bundles and defeats compile-time DCE. Route through `SignalStream.postCommand` instead (ADR-007).
 
 ## 3. TypeScript — strict payload types, no `any`
 
@@ -78,5 +80,5 @@ Type every C#↔JS payload as an explicit TS interface. No `any`.
 
 - `docs/ai-agents/codebase-truth.md` — verified facts; the file that wins on disagreement.
 - `docs/architecture/topology.md` — three-layer topology, WASM→JS bridge, implementation status (Implemented vs Target).
-- `docs/adr/`: ADR-001 (three-layer topology), ADR-003 (render-bridge evolution), ADR-006 (domain responsibility matrix).
+- `docs/adr/`: ADR-001 (three-layer topology), ADR-003 (render-bridge evolution), ADR-006 (domain responsibility matrix), ADR-007 (single-player-local default, `postCommand` input seam).
 - `AGENTS.md` "Architectural Guardrails" — the positive boundary rules; this skill lists the forbidden anti-patterns and the TS typing rule.

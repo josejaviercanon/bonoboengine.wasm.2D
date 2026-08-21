@@ -12,6 +12,7 @@
     -->
     <Project Path="src/Game.UI/Game.UI.csproj" />
     <Project Path="src/Game.Web/Game.Web.csproj" />
+    <Project Path="src/Game.Wasm/Game.Wasm.csproj" />
     <Project Path="src/Game.Tests/Game.Tests.csproj" />
     <Project Path="src/Game.Tests.Aot/Game.Tests.Aot.csproj" />
   </Folder>

@@ -4,7 +4,7 @@ import { sound } from '@pixi/sound';
 import type { SceneBuilder } from './types';
 import { publishCSharpStats } from '../stats/overlays';
 import { SnapshotBuffer } from './interpolation';
-import { connectSignalStream } from './signalSource';
+import { connectSignalStream, type SignalStream } from './signalSource';
 import { BUFFER_HEADER_LENGTH, floatBool, type EntityDecoder } from './bufferLayout';
 
 interface PacmanSpriteState {
@@ -254,6 +254,7 @@ export const pacmanScene: SceneBuilder = (app, params) => {
     let frightenedRemaining = 0;
     let frightFlashes = 0;
     const interpolation = new SnapshotBuffer<PacmanSpriteState>();
+    let stream: SignalStream | null = null;
 
     const layout = () => {
         const scale = Math.min(app.screen.width / boardWidth, app.screen.height / boardHeight);
@@ -290,9 +291,8 @@ export const pacmanScene: SceneBuilder = (app, params) => {
 
     const startGame = () => {
         if (started && !gameOver) return;
-        fetch('/api/pacman/start', { method: 'POST' })
-            .then((response: Response) => {
-                if (!response.ok) throw new Error(`start failed with HTTP ${response.status}`);
+        stream?.postCommand('/api/pacman/start')
+            .then(() => {
                 started = true;
                 gameOver = false;
                 playSound('pacman-start', 'pacman-start.wav');
@@ -302,11 +302,8 @@ export const pacmanScene: SceneBuilder = (app, params) => {
     };
 
     const postDirection = (direction: string) => {
-        fetch('/api/pacman/input', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ direction }),
-        }).catch((error: unknown) => console.error('[pixi-debug] pacman input failed:', error));
+        stream?.postCommand('/api/pacman/input', JSON.stringify({ direction }))
+            .catch((error: unknown) => console.error('[pixi-debug] pacman input failed:', error));
     };
 
     const onKeyDown = (event: KeyboardEvent) => {
@@ -393,9 +390,8 @@ export const pacmanScene: SceneBuilder = (app, params) => {
     startButton.addEventListener('click', startGame);
     app.ticker.add(onTicker);
 
-    if (!p.streamUrl) return;
-
-    const stream = connectSignalStream(p.streamUrl);
+    // SSE requires a stream URL; local-buffer ignores it (in-process provider).
+    stream = connectSignalStream(p.streamUrl);
     if (!stream) return;
     stream.addSignalListener('pacman-move', (data) => {
         try {
@@ -492,7 +488,7 @@ export const pacmanScene: SceneBuilder = (app, params) => {
     const cleanup = () => {
         if (cleanedUp) return;
         cleanedUp = true;
-        stream.close();
+        stream?.close();
         app.ticker.remove(onTicker);
         window.removeEventListener('resize', layout);
         window.removeEventListener('keydown', onKeyDown);

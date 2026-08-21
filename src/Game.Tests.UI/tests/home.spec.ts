@@ -42,6 +42,25 @@ test.describe('Game.Web static-SSR host', () => {
     expect(errors, errors.join('\n')).toEqual([]);
   });
 
+  test('main page renders top menu with example and game selectors', async ({ page }) => {
+    await page.goto('/');
+
+    // Example selector dropdown must be present with grouped PixiJS examples.
+    const exampleSelect = page.locator('#example-select');
+    await expect(exampleSelect).toBeVisible();
+    await expect(exampleSelect.locator('option')).toHaveCount(19);
+
+    // Game selector dropdown must be present with game scenes.
+    const gameSelect = page.locator('#game-select');
+    await expect(gameSelect).toBeVisible();
+    await expect(gameSelect.locator('option[value="games/snake"]')).toHaveCount(1);
+    await expect(gameSelect.locator('option[value="games/tetris"]')).toHaveCount(1);
+    await expect(gameSelect.locator('option[value="games/breakout"]')).toHaveCount(1);
+    await expect(gameSelect.locator('option[value="games/asteroids"]')).toHaveCount(1);
+    await expect(gameSelect.locator('option[value="games/pacman"]')).toHaveCount(1);
+    await expect(gameSelect.locator('option[value="games/racer"]')).toHaveCount(1);
+  });
+
   test('dist frontend assets are served', async ({ request }) => {
     const response = await request.get('/_content/Game.UI/dist/game-bundle.js');
     expect(response.status()).toBe(200);

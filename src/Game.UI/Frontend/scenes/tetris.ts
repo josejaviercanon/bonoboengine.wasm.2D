@@ -165,7 +165,7 @@ export const tetrisScene: SceneBuilder = (app, params) => {
     const startGame = () => {
         if (started && !gameOver) return;
         dbg('starting game (button or space)');
-        stream?.callStart();
+        stream?.postCommand('/api/tetris/start').catch((err) => console.error('[pixi-debug] tetris start failed:', err));
         started = true;
         gameOver = false;
         updateOverlay();
@@ -212,7 +212,8 @@ export const tetrisScene: SceneBuilder = (app, params) => {
                 // During active gameplay: space = hard drop, enter = rotate
                 const command = event.key === ' ' ? 'hardDrop' : 'rotate';
                 dbg('input command:', command);
-                stream?.callInput(command);
+                stream?.postCommand('/api/tetris/input', JSON.stringify({ command }))
+                    .catch((err) => console.error('[pixi-debug] tetris input failed:', err));
             } else {
                 startGame();
             }
@@ -222,12 +223,12 @@ export const tetrisScene: SceneBuilder = (app, params) => {
         if (!command) return;
         event.preventDefault();
         dbg('input command:', command);
-        stream?.callInput(command);
+        stream?.postCommand('/api/tetris/input', JSON.stringify({ command }))
+            .catch((err) => console.error('[pixi-debug] tetris input failed:', err));
     };
     window.addEventListener('keydown', onKeyDown);
 
-    if (!t.streamUrl) return;
-
+    // SSE requires a stream URL; local-buffer ignores it (in-process provider).
     stream = connectSignalStream(t.streamUrl);
     if (!stream) return;
 

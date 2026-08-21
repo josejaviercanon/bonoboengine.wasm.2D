@@ -4,7 +4,7 @@ import { sound } from '@pixi/sound';
 import type { SceneBuilder } from './types';
 import { publishCSharpStats } from '../stats/overlays';
 import { SnapshotBuffer } from './interpolation';
-import { connectSignalStream } from './signalSource';
+import { connectSignalStream, type SignalStream } from './signalSource';
 import { BUFFER_HEADER_LENGTH, floatBool, type EntityDecoder } from './bufferLayout';
 
 interface SnakeSpriteState {
@@ -219,6 +219,7 @@ export const snakeScene: SceneBuilder = (app, params) => {
     let prevGameOver = gameOver;
     let stepMs = DEFAULT_STEP_MS;
     const interpolation = new SnapshotBuffer<SnakeSpriteState>();
+    let stream: SignalStream | null = null;
 
     const logTransitions = () => {
         if (started && !prevStarted) console.debug('[pixi-debug] snake started (ECS signal)');
@@ -242,9 +243,8 @@ export const snakeScene: SceneBuilder = (app, params) => {
 
     const startGame = () => {
         if (started && !gameOver) return;
-        fetch('/api/snake/start', { method: 'POST' })
-            .then((response: Response) => {
-                if (!response.ok) throw new Error(`start failed with HTTP ${response.status}`);
+        stream?.postCommand('/api/snake/start')
+            .then(() => {
                 started = true;
                 gameOver = false;
                 updateOverlay();
@@ -298,17 +298,13 @@ export const snakeScene: SceneBuilder = (app, params) => {
         const direction = KEY_TO_DIRECTION[event.key];
         if (!direction) return;
         event.preventDefault();
-        fetch('/api/snake/input', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ direction }),
-        }).catch((error: unknown) => console.error('[pixi-debug] snake input failed:', error));
+        stream?.postCommand('/api/snake/input', JSON.stringify({ direction }))
+            .catch((error: unknown) => console.error('[pixi-debug] snake input failed:', error));
     };
     window.addEventListener('keydown', onKeyDown);
 
-    if (!s.streamUrl) return;
-
-    const stream = connectSignalStream(s.streamUrl);
+    // SSE requires a stream URL; local-buffer ignores it (in-process provider).
+    stream = connectSignalStream(s.streamUrl);
     if (!stream) return;
     stream.addSignalListener('snake-move', (data) => {
         try {
@@ -349,7 +345,7 @@ export const snakeScene: SceneBuilder = (app, params) => {
     });
 
     const cleanup = () => {
-        stream.close();
+        stream?.close();
         window.removeEventListener('keydown', onKeyDown);
         app.ticker.remove(onTicker);
         overlay.remove();

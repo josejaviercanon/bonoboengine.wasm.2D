@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>BonoboGame.Wasm</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
+    <link rel="stylesheet" href="_content/Game.UI/dist/app.css" />
+    <link rel="icon" type="image/png" href="favicon.png" />
+</head>
+
+<body class="bg-slate-950 m-0 p-0 overflow-hidden">
+    <!-- Blazor WASM mounts the App component tree here. -->
+    <div id="app">Loading...</div>
+
+    <!-- C# → JS bridge: register provider + deliver render signals. -->
+    <script>
+        var _provider = null;
+        var _commandRef = null;
+
+        window.onRenderSignal = function (eventName, json) {
+            if (_provider && _provider._listeners) {
+                var cbs = _provider._listeners[eventName];
+                if (cbs) {
+                    for (var i = 0; i < cbs.length; i++) cbs[i](json);
+                }
+            }
+        };
+
+        window.registerGameWasmProvider = function (dotNetRef) {
+            _commandRef = dotNetRef;
+            _provider = {
+                _listeners: {},
+                onSignal: function (eventName, data) {
+                    var cbs = this._listeners[eventName];
+                    if (cbs) {
+                        for (var i = 0; i < cbs.length; i++) cbs[i](data);
+                    }
+                },
+                postCommand: function (path, bodyJson) {
+                    if (_commandRef) {
+                        _commandRef.invokeMethodAsync('HandleCommand', path, bodyJson || null);
+                    }
+                    return Promise.resolve();
+                },
+                close: function () { }
+            };
+            // The PixiJS module bundle attaches registerLocalBufferProvider at module
+            // evaluation; it may not be evaluated yet when Blazor first renders.
+            // Retry until it appears instead of crashing the interop call.
+            var attempts = 0;
+            (function register() {
+                if (typeof window.registerLocalBufferProvider === 'function') {
+                    window.registerLocalBufferProvider(_provider);
+                    console.log('[Game.Wasm] provider registered');
+                } else if (++attempts < 200) {
+                    setTimeout(register, 50);
+                } else {
+                    console.error('[Game.Wasm] registerLocalBufferProvider never appeared (10s)');
+                }
+            })();
+        };
+    </script>
+
+    <!-- Same PixiJS bundle as Game.Web (shared local-buffer build). -->
+    <script type="module" src="_content/Game.UI/dist/game-bundle.js"></script>
+
+    <!--
+        WASM bootstrap: Blazor boots first and renders App.razor (which creates
+        #pixi-viewport[data-message] inside #app). This script polls until both
+        initGame AND #pixi-viewport exist before starting PixiJS. In WASM mode
+        there is no SSR payload, so data-message is empty — fall back to a
+        default tetris scene.
+    -->
+    <script>
+        function startPixi() {
+            var viewport = document.getElementById('pixi-viewport');
+            if (!viewport) {
+                console.warn('[pixi-debug] #pixi-viewport NOT found in DOM');
+                return;
+            }
+            var message = viewport.getAttribute('data-message') || '';
+            if (!message) message = '{"exampleId":"games/tetris"}';
+            console.log('[pixi-debug] #pixi-viewport found, data-message =', JSON.stringify(message));
+            initGame('pixi-viewport')
+                .then(function () {
+                    if (typeof renderScene !== 'function') {
+                        console.error('[pixi-debug] renderScene is not defined');
+                        return;
+                    }
+                    renderScene(message);
+                })
+                .catch(function (err) {
+                    console.error('[pixi-debug] initGame failed:', err);
+                });
+        }
+
+        window.addEventListener('load', function () {
+            var attempts = 0;
+            (function waitForBundle() {
+                if (typeof initGame === 'function' && document.getElementById('pixi-viewport')) {
+                    startPixi();
+                } else if (++attempts < 300) {
+                    setTimeout(waitForBundle, 50);
+                } else {
+                    console.error('[pixi-debug] initGame or #pixi-viewport not available after 15s');
+                }
+            })();
+        });
+    </script>
+
+    <script src="_framework/blazor.webassembly.js" autostart="false"></script>
+    <script>Blazor.start();</script>
+</body>
+
+</html>

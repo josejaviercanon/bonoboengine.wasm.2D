@@ -1,6 +1,6 @@
 # Architecture Topology — C# ECS Engine in .NET MAUI Hybrid / Blazor WebAssembly
 
-> Detailed companion to `docs/index.md` (the architecture source of truth). Decisions live in `docs/adr/` (ADR-001 … ADR-006); verified facts in `docs/ai-agents/codebase-truth.md`. This file marks **Implemented** vs **Target** explicitly. When code and prose disagree, verified files win.
+> Detailed companion to `docs/index.md` (the architecture source of truth). Decisions live in `docs/adr/` (ADR-001 … ADR-007); verified facts in `docs/ai-agents/codebase-truth.md`. This file marks **Implemented** vs **Target** explicitly. When code and prose disagree, verified files win.
 
 ## The Dual-Runtime State Machine
 
@@ -123,13 +123,14 @@ The full PixiJS v8 stack is declared in `src/Game.UI/package.json`: `pixi.js`, `
 | Arch ECS sim (60 Hz, systems, batched signal, SSR snapshot, SSE stream) | Implemented |
 | PixiJS bootstrap (`initGame`/`renderText`/`renderScene`, scenes, stats) | Implemented |
 | Static-SSR web host + SSE delta bridge (`/api/{ecs,snake,tetris,breakout,asteroids}/stream`) | Implemented |
-| Games: Snake, Tetris, Breakout, Asteroids (ECS authority + POST input + HUD) | Implemented |
+| Games: Snake, Tetris, Breakout, Asteroids, Pacman, Racer (ECS authority + POST input + HUD) | Implemented |
 | Box2D.NET authoritative physics in ECS loop (Asteroids: bodies, contact events, wrap) | Implemented (ADR-002) |
 | Asteroids presentation layer: interpolation + Rapier debris + particle-emitter + GlowFilter | Implemented (ADR-003/005) |
 | Snake presentation layer: interpolation + authoritative red-food fall + immediate replacement food | Implemented (ADR-003/006) |
-| Render transport seam: `IRenderTransport<TSignal>` injected into all sims, `ServerRenderTransport` default, `SINGLE_PLAYER_LOCAL` build switches in `Game.Engine.csproj` | Implemented (ADR-007 Phase 1; zero behavior change, SSE path untouched) |
-| `Game.Wasm` co-located host + `DirectRenderTransport` (pinned `float[]` -> `Float32Array`) | Target (ADR-007 Phase 2) |
-| TS `SnapshotBuffer.ingestFromBuffer` (typed-array ingest, same interpolation math) | Target (ADR-007 Phase 3) |
+| Render transport seam: `IRenderTransport<TSignal>` injected into all sims, `ServerRenderTransport` default, `SINGLE_PLAYER_LOCAL` build switches in `Game.Engine.csproj` | Implemented (ADR-007 Phase 1) |
+| Single-player-local default: `SINGLE_PLAYER_LOCAL` + `local-buffer` are the default builds; `fetch` POST exists only in the `--mode web` / `npm run build:web` multiplayer branch; scenes route all commands through `SignalStream.postCommand` (no raw `fetch` in scene code) | Implemented (ADR-007) |
+| TS `SnapshotBuffer.ingestFromBuffer` (typed-array ingest, same interpolation math) — consumed by tetris, snake, pacman buffer listeners | Implemented (ADR-007 Phase 3 TS half) |
+| `Game.Wasm` co-located host + `DirectRenderTransport` (pinned `float[]` -> `Float32Array`) + `LocalBufferProvider.postCommand` implementation | Target (ADR-007 Phase 2) |
 | `SpriteState` -> `TransformSnapshot` (velocity/rotation/tick) | Target |
 | Shared-memory `HEAPF32` zero-copy transfer | Target |
 | Box2D.NET for other games (Snake/Tetris/Breakout) | Target |

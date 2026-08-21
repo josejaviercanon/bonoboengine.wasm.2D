@@ -1,5 +1,6 @@
 import { Application, Text, TextStyle } from 'pixi.js';
 import { sceneRegistry } from './scenes';
+import { registerLocalBufferProvider, type LocalBufferProvider } from './scenes/signalSource';
 import { attachCSharpStatsOverlay, attachStatsOverlay, toggleCSharpStats, togglePixiStats } from './stats/overlays';
 
 // Debug helper: every interop entry/exit point logs under one prefix so the
@@ -29,6 +30,7 @@ declare global {
         renderScene: (message: string) => Promise<void>;
         togglePixiStats: () => void;
         toggleCSharpStats: () => void;
+        registerLocalBufferProvider: (provider: LocalBufferProvider) => void;
     }
 }
 
@@ -170,3 +172,6 @@ window.renderText = renderText;
 window.renderScene = renderScene;
 window.togglePixiStats = togglePixiStats;
 window.toggleCSharpStats = toggleCSharpStats;
+// ADR-007 Phase 2/3: the co-located Game.Wasm host registers its in-process
+// command/signal bridge through this global (see wwwroot/index.html of that host).
+window.registerLocalBufferProvider = registerLocalBufferProvider;

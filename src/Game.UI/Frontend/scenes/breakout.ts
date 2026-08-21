@@ -2,7 +2,7 @@ import { Graphics, Text, TextStyle } from 'pixi.js';
 import { sound } from '@pixi/sound';
 import type { SceneBuilder } from './types';
 import { SnapshotBuffer, lerp } from './interpolation';
-import { connectSignalStream } from './signalSource';
+import { connectSignalStream, type SignalStream } from './signalSource';
 
 interface BreakoutSpriteState {
     id: number;
@@ -138,6 +138,7 @@ export const breakoutScene: SceneBuilder = (app, params) => {
     let rightDown = false;
     let stepMs = 1000 / 60;
     const interpolation = new SnapshotBuffer<BreakoutSpriteState>();
+    let stream: SignalStream | null = null;
 
     const logTransitions = () => {
         if (gameOver && !prevGameOver) {
@@ -158,17 +159,14 @@ export const breakoutScene: SceneBuilder = (app, params) => {
     };
 
     const postInput = (left: boolean, right: boolean, launch: boolean) => {
-        fetch('/api/breakout/input', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ left, right, launch }),
-        }).catch((err) => console.error('[pixi-debug] breakout input failed:', err));
+        stream?.postCommand('/api/breakout/input', JSON.stringify({ left, right, launch }))
+            .catch((err) => console.error('[pixi-debug] breakout input failed:', err));
     };
 
     const startGame = () => {
         if (started && !gameOver) return;
         dbg('starting game (button or space)');
-        fetch('/api/breakout/start', { method: 'POST' })
+        stream?.postCommand('/api/breakout/start')
             .then(() => {
                 started = true;
                 gameOver = false;
@@ -269,9 +267,8 @@ export const breakoutScene: SceneBuilder = (app, params) => {
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
 
-    if (!b.streamUrl) return;
-
-    const stream = connectSignalStream(b.streamUrl);
+    // SSE requires a stream URL; local-buffer ignores it (in-process provider).
+    stream = connectSignalStream(b.streamUrl);
     if (!stream) return;
     dbg('SSE connected:', b.streamUrl);
     stream.addSignalListener('breakout-move', (data) => {
@@ -301,7 +298,7 @@ export const breakoutScene: SceneBuilder = (app, params) => {
         }
     });
     const cleanup = () => {
-        stream.close();
+        stream?.close();
         window.removeEventListener('keydown', onKeyDown);
         window.removeEventListener('keyup', onKeyUp);
         app.ticker.remove(onTicker);

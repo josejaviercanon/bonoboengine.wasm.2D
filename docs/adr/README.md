@@ -33,3 +33,10 @@ Architecture decisions for the Bonobo Engine are recorded here as ADRs, one file
 
 ## Records
 
+- `ADR-007-single-player-local-default.md` — `SINGLE_PLAYER_LOCAL` is the
+  default C# compilation constant; `local-buffer` is the default Vite render
+  source; scenes never call `fetch` POST directly (multiplayer-only).
+
+> ADR-001 … ADR-006 are referenced across `docs/` and `AGENTS.md` but their
+> individual record files are not yet transcribed into this folder.
+

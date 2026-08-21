@@ -8,7 +8,7 @@ import RAPIER from '@dimforge/rapier2d';
 import type { SceneBuilder } from './types';
 import { publishCSharpStats } from '../stats/overlays';
 import { SnapshotBuffer, clampedDeltaSeconds, lerpAngle, lerpWrapped } from './interpolation';
-import { connectSignalStream } from './signalSource';
+import { connectSignalStream, type SignalStream } from './signalSource';
 
 interface AsteroidSpriteState {
     id: number;
@@ -389,6 +389,7 @@ export const asteroidsScene: SceneBuilder = (app, params) => {
     let lives = a.lives ?? 3;
     let thrustOn = false;
     let prevGameOver = gameOver;
+    let stream: SignalStream | null = null;
 
     const updateOverlay = () => {
         if (started && !gameOver) {
@@ -403,7 +404,7 @@ export const asteroidsScene: SceneBuilder = (app, params) => {
     const startGame = () => {
         if (started && !gameOver) return;
         dbg('starting game (button or space)');
-        fetch('/api/asteroids/start', { method: 'POST' })
+        stream?.postCommand('/api/asteroids/start')
             .then(() => {
                 started = true;
                 gameOver = false;
@@ -592,11 +593,8 @@ export const asteroidsScene: SceneBuilder = (app, params) => {
     let rightDown = false;
 
     const postInput = (thrust: boolean, left: boolean, right: boolean, fire: boolean, hyperspace: boolean) => {
-        fetch('/api/asteroids/input', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ thrust, left, right, fire, hyperspace }),
-        }).catch((err) => console.error('[pixi-debug] asteroids input failed:', err));
+        stream?.postCommand('/api/asteroids/input', JSON.stringify({ thrust, left, right, fire, hyperspace }))
+            .catch((err) => console.error('[pixi-debug] asteroids input failed:', err));
     };
 
     const onKeyDown = (event: KeyboardEvent) => {
@@ -702,9 +700,8 @@ export const asteroidsScene: SceneBuilder = (app, params) => {
         'started', started, 'gameOver', gameOver,
         'stream', a.streamUrl);
 
-    if (!a.streamUrl) return;
-
-    const stream = connectSignalStream(a.streamUrl);
+    // SSE requires a stream URL; local-buffer ignores it (in-process provider).
+    stream = connectSignalStream(a.streamUrl);
     if (!stream) return;
     dbg('SSE connected:', a.streamUrl);
     stream.addSignalListener('asteroids-move', (data) => {
@@ -766,7 +763,7 @@ export const asteroidsScene: SceneBuilder = (app, params) => {
     });
 
     const cleanup = () => {
-        stream.close();
+        stream?.close();
         window.removeEventListener('keydown', onKeyDown);
         window.removeEventListener('keyup', onKeyUp);
         app.ticker.remove(onTicker);

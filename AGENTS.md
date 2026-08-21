@@ -25,15 +25,17 @@ Summary of the scope an agent can search using this server:
 
 - `docs/2d-games` and `docs/game-development` — game architecture and gamedev workflow references (see `docs/index.md`).
 - `docs/architecture/topology.md` — engine topology deep-dive (Implemented vs Target): three-layer runtime, WASM→JS bridge, physics, skeletal pipelines, domain matrix, ecosystem matrix, implementation status.
-- `docs/adr/` — Architecture Decision Records (ADR-001 topology … ADR-006 domain matrix). Read before changing cross-boundary, physics, render-bridge, or asset-pipeline decisions.
+- `docs/adr/` — Architecture Decision Records (ADR-001 topology … ADR-006 domain matrix, ADR-007 single-player default). Read before changing cross-boundary, physics, render-bridge, or asset-pipeline decisions.
 - `.agents/skills/static-ssr-snapshot-bridge/SKILL.md` — mandatory rules for the `Game.Web` host + C#↔JS boundary (static SSR only, batched-snapshot SSE/POST bridge, strict TS payload types). Supersedes any generic "Blazor WASM + Vite + CustomElements" skill for this repo; load it before touching hosting, bootstrap, the render bridge, or Frontend interop.
 
 ## Architectural Guardrails
 
-These rules govern code that crosses the C#↔JS boundary or touches the simulation/presentation split. Backed by ADR-001…ADR-006 and `docs/architecture/topology.md`.
+These rules govern code that crosses the C#↔JS boundary or touches the simulation/presentation split. Backed by ADR-001…ADR-007 and `docs/architecture/topology.md`.
 
 - **C# is the sole authoritative simulation.** Never run authoritative physics/logic in JS. Never implement the same authority in both layers (prevents desync/rollback). (ADR-001, ADR-006)
 - **Cross the boundary via batched render snapshots, not per-entity per-frame interop.** The boundary concept is "the simulation produced a render snapshot," not "an entity moved." Never move simulation back-and-forth through JS interop every frame. (ADR-003)
+- **Single-player local is the default build (ADR-007).** `SINGLE_PLAYER_LOCAL` is defined by default in `Game.Engine.csproj` (suppressed only by `/p:IsMultiplayer=true` or `/p:IsEcsServerSide=true`), and `npm run build` defaults the Vite `__RENDER_SOURCE__` to `'local-buffer'`. Both sides of the boundary share one flag pair; keep them in sync.
+- **`fetch` POST is multiplayer-only; scenes never call `fetch`.** All commands (input, start, reset, pause, config) route through `SignalStream.postCommand(path, bodyJson?)` in `src/Game.UI/Frontend/scenes/signalSource.ts`. The SSE branch (`npm run build:web`, `--mode web`) is the only place HTTP POST client code exists, and it is dead-code-eliminated from local bundles. The local branch dispatches in-process via `LocalBufferProvider.postCommand` registered by the co-located WASM host — no new input layer/library. (ADR-007)
 - **Snapshots must carry temporal context** (prev+current position, velocity, rotation, tick) so the client can interpolate at display Hz. Current `SpriteState` lacks these — extending toward `TransformSnapshot` is the first bridge task. (ADR-003)
 - **Keep any JS-side physics world (Rapier) resident** in JS/WASM; feed it snapshots at discrete boundaries. Use Rapier only for genuine visual dynamics (capes, ropes, ragdolls, debris); use cheap `lerp`/`slerp`/`spring` for plain interpolation. (ADR-002, ADR-005)
 - **Box2D.NET is the authoritative physics engine** (vendored `src/Box2D.NET`, wired into `Game.Engine` and used by `AsteroidsSimulation`). Rapier is presentation-only, never authoritative. (ADR-002)
@@ -56,9 +58,12 @@ Run from `src/Game.UI`:
 
 ```powershell
 npm ci
-npm run build
-npm run typecheck # scoped tsconfig.app.json (Frontend) + tsconfig.node.json (vite.config.ts)
+npm run build        # DEFAULT: single-player co-located bundle (__RENDER_SOURCE__='local-buffer')
+npm run build:web    # multiplayer/SSE bundle for the Game.Web host (__RENDER_SOURCE__='sse')
+npm run typecheck    # scoped tsconfig.app.json (Frontend) + tsconfig.node.json (vite.config.ts)
 ```
+
+The Game.Web static-SSR host serves SSE streams, so it needs the `build:web` bundle — build it before running `dotnet watch --project src/Game.Web` (or before Playwright E2E, which boots that host).
 
 Run Playwright E2E from `src/Game.Tests.UI` (Node project; needs `npm ci` first):
 

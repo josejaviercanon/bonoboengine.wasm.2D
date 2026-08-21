@@ -77,7 +77,9 @@ PIXIJS v8                       sprites, containers, animation, camera, particle
 - **Physics:** Box2D.NET = authoritative (C# ECS loop, vendored at `src/Box2D.NET`, wired into `Game.Engine` and used by `AsteroidsSimulation`); Rapier `@dimforge/rapier2d` = optional presentation physics, entity-selective, used by the asteroids debris field (ADR-002, ADR-005).
 - **Skeletal animation:** glTF (`.glb`) is the asset contract, not the ECS architecture — two decoupled pipelines (authoring: AI+Blender→`.glb`; runtime: `.glb`→importer→ECS→PixiJS); the animation state machine belongs to the ECS (ADR-004).
 
-Full matrices (ecosystem integration, implementation status, packages) live in `docs/architecture/topology.md`. Decisions: `docs/adr/` (ADR-001…ADR-006).
+Full matrices (ecosystem integration, implementation status, packages) live in `docs/architecture/topology.md`. Decisions: `docs/adr/` (ADR-001…ADR-007).
+
+**Single-player local is the default build (ADR-007).** `SINGLE_PLAYER_LOCAL` is the default C# compilation constant; `npm run build` produces a local-buffer bundle (`__RENDER_SOURCE__='local-buffer'`) with zero HTTP client code. Multiplayer is opt-in: build with `npm run build:web` + `/p:IsMultiplayer=true`.
 
 ## 🛠️ Step-by-Step Blueprint for the MVP
 
@@ -292,19 +294,55 @@ AGENTS.md                   # Agent build/workflow rules
 - Node.js (LTS) — for Vite and Tailwind CLI
 - MAUI workloads (only needed for `Game.Maui` builds): `dotnet workload install maui`
 
-### Run the Web Host
+### How to Build and Run a Single-Player Game (Default)
 
-From repository root:
+Single-player is the **default** build mode. The C# simulation runs in-process
+in the browser via Blazor WebAssembly (`Game.Wasm`). No HTTP, no SSE, no server —
+zero network overhead. `SINGLE_PLAYER_LOCAL` is defined automatically.
 
 ```powershell
+# 1. Build frontend assets (local-buffer bundle — default Vite mode)
 cd src/Game.UI
 npm ci
-npm run build       # Vite JS build, then Tailwind CSS build → wwwroot/dist
+npm run build
 cd ../..
+
+# 2. Build and run the Blazor WASM host
+dotnet watch --project src/Game.Wasm
+```
+
+The console prints a local URL (e.g., `https://localhost:5001`). Open it in
+Chrome/Edge/Firefox — the C# simulation starts in-browser and PixiJS renders
+the game scene. All input (`postCommand`) routes directly to the in-process
+sim via the `LocalBufferProvider` — no `fetch` POST, no EventSource.
+
+### How to Build and Run a Multiplayer Game (Server-Authoritative)
+
+Multiplayer mode runs the C# simulation on the server (`Game.Web`) and streams
+render signals to the browser over SSE. Input is sent via `fetch` POST and
+validated server-side. Requires explicit flags on both sides.
+
+```powershell
+# 1. Build frontend assets (SSE/multiplayer bundle)
+cd src/Game.UI
+npm ci
+npm run build:web    # Vite --mode web → __RENDER_SOURCE__='sse'
+cd ../..
+
+# 2. Build and run the static-SSR web host
 dotnet watch --project src/Game.Web
 ```
 
-The console prints a local loopback URL (e.g., `https://localhost:5001`). Open it to see the PixiJS "Hello World from PixiJS!" canvas with the top HUD bar.
+Open the printed URL. The server streams batched render signals over
+`text/event-stream` (SSE) and accepts player input via HTTP POST endpoints
+(`/api/{game}/input`, `/api/{game}/start`, `/api/{game}/restart`).
+
+For a multiplayer-only .NET build that skips the `SINGLE_PLAYER_LOCAL`
+compilation constant:
+
+```powershell
+dotnet build bonoboWebGame.slnx /p:IsMultiplayer=true /p:IsEcsServerSide=true
+```
 
 ### Build & Test
 
