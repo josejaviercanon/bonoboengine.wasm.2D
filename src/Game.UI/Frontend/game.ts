@@ -62,6 +62,7 @@ export async function initGame(containerId: string): Promise<void> {
 
     // Initialize with fallback bounds if resizeTo yields zero size
     await app.init({
+        //preference: 'webgpu', // Forces PixiJS to prioritize WebGPU
         resizeTo: container,
         backgroundAlpha: 1, // opaque canvas: avoids driver/compositor blank-canvas issues with transparent WebGL
         autoDensity: true, // set canvas CSS size to screen size; without it the canvas keeps its DPR-scaled
@@ -70,6 +71,8 @@ export async function initGame(containerId: string): Promise<void> {
         hello: true // Forces PixiJS to log its boot signature to the console to verify execution
     });
 
+    // Check which renderer actually loaded, Output will tell you if it's 'webgpu' or 'webgl'
+    dbg("Pixy Active Renderer Type:", app.renderer.type); 
     dbg('app.init succeeded, canvas size =', app.canvas.width, 'x', app.canvas.height);
 
     container.appendChild(app.canvas);

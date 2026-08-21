@@ -61,6 +61,8 @@ public sealed class PacmanStepSystem : BaseSystem<World, float>
     ];
 
     private readonly Random _random;
+    private Entity[] _entityBuffer = [];
+    private readonly List<Entity> _ghostList = new(4);
 
     public PacmanStepSystem(World world, Random random) : base(world)
     {
@@ -117,10 +119,11 @@ public sealed class PacmanStepSystem : BaseSystem<World, float>
 
     private void BeginFrame()
     {
-        var entities = new Entity[World.Size];
-        World.GetEntities(new QueryDescription(), entities.AsSpan());
-        foreach (var entity in entities)
+        EnsureBuffer();
+        World.GetEntities(new QueryDescription(), _entityBuffer.AsSpan(0, World.Size));
+        for (var _i = 0; _i < World.Size; _i++)
         {
+            var entity = _entityBuffer[_i];
             if (!World.IsAlive(entity) || !World.Has<PacmanTransform>(entity)) continue;
             var transform = World.Get<PacmanTransform>(entity);
             transform.PreviousX = transform.X;
@@ -490,7 +493,7 @@ public sealed class PacmanStepSystem : BaseSystem<World, float>
 
             state.DotCount++;
             var limit = PacmanLevels.HouseDotLimit(stats.Level, state.GhostRole);
-            if (limit > 0 && state.DotCount >= limit)
+            if (state.DotCount >= limit)
             {
                 state.InHouse = 0;
             }
@@ -707,45 +710,46 @@ public sealed class PacmanStepSystem : BaseSystem<World, float>
 
     private Entity FindStats()
     {
-        var entities = new Entity[World.Size];
-        World.GetEntities(new QueryDescription(), entities.AsSpan());
-        foreach (var entity in entities)
+        EnsureBuffer();
+        World.GetEntities(new QueryDescription(), _entityBuffer.AsSpan(0, World.Size));
+        for (var _i = 0; _i < World.Size; _i++)
         {
-            if (World.IsAlive(entity) && World.Has<PacmanStats>(entity)) return entity;
+            if (World.IsAlive(_entityBuffer[_i]) && World.Has<PacmanStats>(_entityBuffer[_i])) return _entityBuffer[_i];
         }
         return Entity.Null;
     }
 
     private Entity FindPlayer()
     {
-        var entities = new Entity[World.Size];
-        World.GetEntities(new QueryDescription(), entities.AsSpan());
-        foreach (var entity in entities)
+        EnsureBuffer();
+        World.GetEntities(new QueryDescription(), _entityBuffer.AsSpan(0, World.Size));
+        for (var _i = 0; _i < World.Size; _i++)
         {
-            if (World.IsAlive(entity) && World.Has<PacmanPlayer>(entity)) return entity;
+            if (World.IsAlive(_entityBuffer[_i]) && World.Has<PacmanPlayer>(_entityBuffer[_i])) return _entityBuffer[_i];
         }
         return Entity.Null;
     }
 
     private Entity[] FindGhosts()
     {
-        var entities = new Entity[World.Size];
-        World.GetEntities(new QueryDescription(), entities.AsSpan());
-        var ghosts = new List<Entity>(4);
-        foreach (var entity in entities)
+        EnsureBuffer();
+        World.GetEntities(new QueryDescription(), _entityBuffer.AsSpan(0, World.Size));
+        _ghostList.Clear();
+        for (var _i = 0; _i < World.Size; _i++)
         {
-            if (World.IsAlive(entity) && World.Has<PacmanGhostState>(entity)) ghosts.Add(entity);
+            if (World.IsAlive(_entityBuffer[_i]) && World.Has<PacmanGhostState>(_entityBuffer[_i])) _ghostList.Add(_entityBuffer[_i]);
         }
-        ghosts.Sort((left, right) => World.Get<PacmanGhostState>(left).Role.CompareTo(World.Get<PacmanGhostState>(right).Role));
-        return ghosts.ToArray();
+        _ghostList.Sort((left, right) => World.Get<PacmanGhostState>(left).Role.CompareTo(World.Get<PacmanGhostState>(right).Role));
+        return _ghostList.ToArray();
     }
 
     private Entity FindPelletAt(PacmanCell cell)
     {
-        var entities = new Entity[World.Size];
-        World.GetEntities(new QueryDescription(), entities.AsSpan());
-        foreach (var entity in entities)
+        EnsureBuffer();
+        World.GetEntities(new QueryDescription(), _entityBuffer.AsSpan(0, World.Size));
+        for (var _i = 0; _i < World.Size; _i++)
         {
+            var entity = _entityBuffer[_i];
             if (!World.IsAlive(entity) || !World.Has<PacmanPellet>(entity)) continue;
             var transform = World.Get<PacmanTransform>(entity);
             if (PacmanMaze.CellFromPosition(transform.X, transform.Y) == cell) return entity;
@@ -753,13 +757,18 @@ public sealed class PacmanStepSystem : BaseSystem<World, float>
         return Entity.Null;
     }
 
+    private void EnsureBuffer()
+    {
+        if (_entityBuffer.Length < World.Size) _entityBuffer = new Entity[World.Size];
+    }
+
     private Entity FindFruit()
     {
-        var entities = new Entity[World.Size];
-        World.GetEntities(new QueryDescription(), entities.AsSpan());
-        foreach (var entity in entities)
+        EnsureBuffer();
+        World.GetEntities(new QueryDescription(), _entityBuffer.AsSpan(0, World.Size));
+        for (var _i = 0; _i < World.Size; _i++)
         {
-            if (World.IsAlive(entity) && World.Has<PacmanFruit>(entity)) return entity;
+            if (World.IsAlive(_entityBuffer[_i]) && World.Has<PacmanFruit>(_entityBuffer[_i])) return _entityBuffer[_i];
         }
         return Entity.Null;
     }

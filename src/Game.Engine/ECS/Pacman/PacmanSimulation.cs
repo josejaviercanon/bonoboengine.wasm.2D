@@ -79,6 +79,7 @@ public sealed class PacmanSimulation : IDisposable
     private readonly object _sync = new();
     private long _seq;
     private long _epoch;
+    private Entity[] _entityBuffer = [];
 
     public PacmanSimulation(int seed = 0, bool startTimer = true,
         IRenderTransport<PacmanRenderSignal>? renderTransport = null)
@@ -183,7 +184,14 @@ public sealed class PacmanSimulation : IDisposable
     {
         lock (_sync)
         {
-            TickCore();
+            try
+            {
+                TickCore();
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[PacmanSimulation] tick error: {ex}");
+            }
         }
     }
 
@@ -399,12 +407,13 @@ public sealed class PacmanSimulation : IDisposable
 
     private IReadOnlyList<PacmanSpriteState> BuildSnapshot()
     {
-        var entities = new Entity[_world.Size];
-        _world.GetEntities(new QueryDescription(), entities.AsSpan());
-        var states = new List<PacmanSpriteState>(entities.Length);
+        EnsureBuffer();
+        _world.GetEntities(new QueryDescription(), _entityBuffer.AsSpan(0, _world.Size));
+        var states = new List<PacmanSpriteState>(_world.Size);
 
-        foreach (var entity in entities)
+        for (var _i = 0; _i < _world.Size; _i++)
         {
+            var entity = _entityBuffer[_i];
             if (!_world.IsAlive(entity) || !_world.Has<PacmanSprite>(entity) ||
                 !_world.Has<PacmanTransform>(entity) || !_world.Has<RenderId>(entity)) continue;
             states.Add(ToState(entity));
@@ -477,27 +486,30 @@ public sealed class PacmanSimulation : IDisposable
         }
     }
 
+    private void EnsureBuffer()
+    {
+        if (_entityBuffer.Length < _world.Size) _entityBuffer = new Entity[_world.Size];
+    }
+
     private Entity FindStats()
     {
-        var entities = new Entity[_world.Size];
-        _world.GetEntities(new QueryDescription(), entities.AsSpan());
-        foreach (var entity in entities)
+        EnsureBuffer();
+        _world.GetEntities(new QueryDescription(), _entityBuffer.AsSpan(0, _world.Size));
+        for (var _i = 0; _i < _world.Size; _i++)
         {
-            if (_world.IsAlive(entity) && _world.Has<PacmanStats>(entity)) return entity;
+            if (_world.IsAlive(_entityBuffer[_i]) && _world.Has<PacmanStats>(_entityBuffer[_i])) return _entityBuffer[_i];
         }
-
         return Entity.Null;
     }
 
     private Entity FindFruit()
     {
-        var entities = new Entity[_world.Size];
-        _world.GetEntities(new QueryDescription(), entities.AsSpan());
-        foreach (var entity in entities)
+        EnsureBuffer();
+        _world.GetEntities(new QueryDescription(), _entityBuffer.AsSpan(0, _world.Size));
+        for (var _i = 0; _i < _world.Size; _i++)
         {
-            if (_world.IsAlive(entity) && _world.Has<PacmanFruit>(entity)) return entity;
+            if (_world.IsAlive(_entityBuffer[_i]) && _world.Has<PacmanFruit>(_entityBuffer[_i])) return _entityBuffer[_i];
         }
-
         return Entity.Null;
     }
 
