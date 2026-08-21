@@ -10,7 +10,8 @@ public enum TetrisCommand
     Left,
     Right,
     Rotate,
-    Down
+    Down,
+    HardDrop
 }
 
 /// <summary>
@@ -163,7 +164,35 @@ public partial class TetrisInputSystem : BaseSystem<World, double>
             case TetrisCommand.Down:
                 _gravity.SoftDrop();
                 break;
+            case TetrisCommand.HardDrop:
+                HardDrop(statsEntity, piece);
+                break;
         }
+    }
+
+    private void HardDrop(Entity statsEntity, Entity piece)
+    {
+        if (!World.IsAlive(piece)) return;
+        var cell = World.Get<GridCell>(piece);
+        var tp = World.Get<TetrisPiece>(piece);
+        var type = (TetrominoType)tp.Type;
+        var distance = 0;
+        // Drop until blocked
+        while (TetrisGrid.Fits(World, _gridWidth, _gridHeight, type, cell.X, cell.Y + 1, tp.Rotation))
+        {
+            cell = new GridCell(cell.X, cell.Y + 1);
+            distance++;
+        }
+        if (distance > 0)
+        {
+            World.Set(piece, cell);
+        }
+        // Score: 2 points per cell hard-dropped (standard Tetris convention)
+        var stats = World.Get<TetrisStats>(statsEntity);
+        World.Set(statsEntity, new TetrisStats(stats.Score + distance * 2, stats.Rows, stats.Level,
+            stats.GameOver, stats.Started, stats.Locked, stats.LinesCleared, dirty: true));
+        // Lock via gravity system (sets dirty, handles line clear + spawn)
+        _gravity.SoftDrop();
     }
 
     private void MarkDirty(Entity statsEntity)

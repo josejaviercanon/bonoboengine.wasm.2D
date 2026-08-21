@@ -29,6 +29,16 @@ export interface SignalStream {
      * branching: only the listener matching the compiled-in transport runs.
      */
     addBufferListener(eventName: string, onData: (floats: Float32Array) => void): void;
+    /**
+     * Send a player command to the simulation.
+     * SSE: POST /api/{game}/input (C# validates over network).
+     * local-buffer: direct call to sim.QueueInput (zero HTTP).
+     */
+    callInput(command: string): void;
+    /** Start/restart the game. SSE: POST /api/{game}/start. local-buffer: sim.Start(). */
+    callStart(): void;
+    /** Reset the game. SSE: POST /api/{game}/reset. local-buffer: sim.Reset(). */
+    callReset(): void;
     /** Tear the stream down (EventSource.close / provider close). */
     close(): void;
     /** Called when the stream is interrupted; SSE reconnects automatically. */
@@ -43,6 +53,12 @@ export interface SignalStream {
  */
 export interface LocalBufferProvider {
     onSignal(eventName: string, onData: (floats: Float32Array) => void): void;
+    /** Direct input: calls sim.QueueInput(command) in-process, zero HTTP. */
+    callInput?(command: string): void;
+    /** Direct start: calls sim.Start() in-process. */
+    callStart?(): void;
+    /** Direct reset: calls sim.Reset() in-process. */
+    callReset?(): void;
     close?(): void;
 }
 
@@ -65,6 +81,22 @@ export function connectSignalStream(url: string | undefined): SignalStream | nul
             // SSE builds carry no typed-array source; registered buffer
             // listeners simply never fire (see SignalStream.addBufferListener).
             addBufferListener: () => { /* no-op in SSE bundles */ },
+            // SSE: input goes over HTTP — C# is the sole authority.
+            callInput: (command) => {
+                fetch('/api/tetris/input', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ command }),
+                }).catch((err) => console.error('[pixi-debug] tetris input failed:', err));
+            },
+            callStart: () => {
+                fetch('/api/tetris/start', { method: 'POST' })
+                    .catch((err) => console.error('[pixi-debug] tetris start failed:', err));
+            },
+            callReset: () => {
+                fetch('/api/tetris/restart', { method: 'POST' })
+                    .catch((err) => console.error('[pixi-debug] tetris restart failed:', err));
+            },
             close: () => source.close(),
             onInterrupted: (handler) => { source.onerror = () => handler(); }
         };
@@ -84,6 +116,10 @@ export function connectSignalStream(url: string | undefined): SignalStream | nul
         // simply never fire (the buffer listener is the live one).
         addSignalListener: () => { /* no-op in local-buffer bundles */ },
         addBufferListener: (eventName, onData) => provider.onSignal(eventName, onData),
+        // local-buffer: direct in-process calls — zero HTTP, zero serialization.
+        callInput: (command) => provider.callInput?.(command),
+        callStart: () => provider.callStart?.(),
+        callReset: () => provider.callReset?.(),
         close: () => provider.close?.(),
         onInterrupted: () => { /* in-memory bridge never disconnects */ }
     };

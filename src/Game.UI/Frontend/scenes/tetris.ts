@@ -1,7 +1,8 @@
 import { Graphics, Text, TextStyle } from 'pixi.js';
 import type { SceneBuilder } from './types';
 import { SnapshotBuffer, lerp } from './interpolation';
-import { connectSignalStream } from './signalSource';
+import { connectSignalStream, type SignalStream } from './signalSource';
+import { BUFFER_HEADER_LENGTH, floatBool, type EntityDecoder } from './bufferLayout';
 
 interface TetrisSpriteState {
     id: number;
@@ -60,6 +61,25 @@ const KEY_TO_COMMAND: Record<string, string> = {
 };
 
 const dbg = (...args: unknown[]) => console.log('[pixi-debug] tetris:', ...args);
+
+// Shared-memory float32 layout (ADR-007 Phase 3) — must match the C#
+// DirectRenderTransport writer (Phase 2). See scenes/bufferLayout.ts.
+//   floats[0..5]  standard header (seq, epoch, entityCount, stride, stepMs, tickMs)
+//   floats[6..9]  tetris extras (score, rows, level, gameOver)
+//   floats[10..11] tetris flags (started, locked)
+//   floats[12]    linesCleared
+//   floats[13..]  entities × stride 6 (id, x, y, r, g, b)
+const TETRIS_BUFFER_EXTRAS = 8;
+const TETRIS_BUFFER_ENTITY_BASE = BUFFER_HEADER_LENGTH + TETRIS_BUFFER_EXTRAS;
+
+const decodeTetrisSprite: EntityDecoder<TetrisSpriteState> = (floats, offset) => ({
+    id: floats[offset],
+    x: floats[offset + 1],
+    y: floats[offset + 2],
+    r: floats[offset + 3],
+    g: floats[offset + 4],
+    b: floats[offset + 5],
+});
 
 /**
  * Tetris scene: the C# simulation owns the court (a set of TetrisBlock ECS entities)
@@ -125,6 +145,7 @@ export const tetrisScene: SceneBuilder = (app, params) => {
     let prevGameOver = gameOver;
     let stepMs = 1000 / 60;
     const interpolation = new SnapshotBuffer<TetrisSpriteState>();
+    let stream: SignalStream | null = null;
 
     const logTransitions = () => {
         if (gameOver && !prevGameOver) dbg('game ended (ECS signal) - score', score);
@@ -144,13 +165,10 @@ export const tetrisScene: SceneBuilder = (app, params) => {
     const startGame = () => {
         if (started && !gameOver) return;
         dbg('starting game (button or space)');
-        fetch('/api/tetris/start', { method: 'POST' })
-            .then(() => {
-                started = true;
-                gameOver = false;
-                updateOverlay();
-            })
-            .catch((err) => console.error('[pixi-debug] tetris start failed:', err));
+        stream?.callStart();
+        started = true;
+        gameOver = false;
+        updateOverlay();
     };
     startButton.addEventListener('click', startGame);
 
@@ -190,30 +208,37 @@ export const tetrisScene: SceneBuilder = (app, params) => {
     const onKeyDown = (event: KeyboardEvent) => {
         if (event.key === ' ' || event.key === 'Enter') {
             event.preventDefault();
-            startGame();
+            if (started && !gameOver) {
+                // During active gameplay: space = hard drop, enter = rotate
+                const command = event.key === ' ' ? 'hardDrop' : 'rotate';
+                dbg('input command:', command);
+                stream?.callInput(command);
+            } else {
+                startGame();
+            }
             return;
         }
         const command = KEY_TO_COMMAND[event.key];
         if (!command) return;
         event.preventDefault();
         dbg('input command:', command);
-        fetch('/api/tetris/input', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ command }),
-        }).catch((err) => console.error('[pixi-debug] tetris input failed:', err));
+        stream?.callInput(command);
     };
     window.addEventListener('keydown', onKeyDown);
 
     if (!t.streamUrl) return;
 
-    const stream = connectSignalStream(t.streamUrl);
+    stream = connectSignalStream(t.streamUrl);
     if (!stream) return;
+
+    // SSE path: JSON text signals (multiplayer/server-authoritative).
     stream.addSignalListener('tetris-move', (data) => {
         try {
             const signal = JSON.parse(data) as TetrisRenderSignal;
             stepMs = Math.max(1, signal.stepMs ?? 1000 / 60);
-            if (signal.locked) interpolation.removeWhere(id => id < 1000);
+            // Always purge falling-piece entries (ids < 1000) before ingesting.
+            // Prevents stale ghost blocks when the piece rotates or moves.
+            interpolation.removeWhere(id => id < 1000);
             interpolation.ingest(signal.sprites, signal.seq, signal.epoch);
             setGameState(signal.score, signal.rows, signal.level, signal.gameOver, signal.started);
             if (signal.locked) dbg('ECS event: piece locked, cleared lines', signal.linesCleared);
@@ -221,8 +246,36 @@ export const tetrisScene: SceneBuilder = (app, params) => {
             console.error('[pixi-debug] tetris-move parse failed:', err);
         }
     });
+
+    // ADR-007 Phase 3: float32 buffer decoder for SINGLEPLAYER co-located host.
+    // Decoded straight from shared-memory Float32Array — no JSON.parse, no network.
+    // Only fires in `--mode wasm` bundles; both listeners coexist without branching.
+    stream.addBufferListener('tetris-move', (floats) => {
+        try {
+            const header = interpolation.ingestFromBuffer(floats, decodeTetrisSprite, TETRIS_BUFFER_ENTITY_BASE);
+            if (!header) return;
+            stepMs = Math.max(1, header.stepMs);
+            // Always purge falling-piece entries before ingesting.
+            interpolation.removeWhere(id => id < 1000);
+
+            const extras = BUFFER_HEADER_LENGTH;
+            const sigScore = floats[extras];
+            const sigRows = floats[extras + 1];
+            const sigLevel = floats[extras + 2];
+            const sigGameOver = floatBool(floats[extras + 3]);
+            const sigStarted = floatBool(floats[extras + 4]);
+            const sigLocked = floatBool(floats[extras + 5]);
+            const sigLinesCleared = floats[extras + 6];
+
+            setGameState(sigScore, sigRows, sigLevel, sigGameOver, sigStarted);
+            if (sigLocked) dbg('ECS event: piece locked, cleared lines', sigLinesCleared);
+        } catch (err) {
+            console.error('[pixi-debug] tetris-move buffer decode failed:', err);
+        }
+    });
+
     const cleanup = () => {
-        stream.close();
+        stream?.close();
         window.removeEventListener('keydown', onKeyDown);
         app.ticker.remove(onTicker);
         overlay.remove();

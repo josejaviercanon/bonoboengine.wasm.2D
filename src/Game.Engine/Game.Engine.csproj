@@ -8,8 +8,8 @@
          server-authoritative host (both true). Build with
          /p:IsMultiplayer=false /p:IsEcsServerSide=false to define
          SINGLE_PLAYER_LOCAL for the co-located WASM host (Phase 2). -->
-    <IsMultiplayer Condition="'$(IsMultiplayer)' == ''">true</IsMultiplayer>
-    <IsEcsServerSide Condition="'$(IsEcsServerSide)' == ''">true</IsEcsServerSide>
+    <IsMultiplayer Condition="'$(IsMultiplayer)' == ''">false</IsMultiplayer>
+    <IsEcsServerSide Condition="'$(IsEcsServerSide)' == ''">false</IsEcsServerSide>
     <DefineConstants Condition="'$(IsMultiplayer)' != 'true' and '$(IsEcsServerSide)' != 'true'">$(DefineConstants);SINGLE_PLAYER_LOCAL</DefineConstants>
   </PropertyGroup>
 

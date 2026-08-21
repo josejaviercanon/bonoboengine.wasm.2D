@@ -375,6 +375,7 @@ public sealed class TetrisSimulation : IDisposable
             case "right": command = TetrisCommand.Right; return true;
             case "rotate": command = TetrisCommand.Rotate; return true;
             case "down": command = TetrisCommand.Down; return true;
+            case "harddrop": command = TetrisCommand.HardDrop; return true;
             default: command = default; return false;
         }
     }
