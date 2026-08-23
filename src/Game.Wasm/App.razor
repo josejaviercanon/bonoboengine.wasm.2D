@@ -1,64 +1,28 @@
-@using Game.Engine.ECS
-@using Game.Engine.ECS.Tetris
-@using Game.Engine.ECS.Snake
-@using Game.Engine.ECS.Breakout
-@using Game.Engine.ECS.Asteroids
-@using Game.Engine.ECS.Pacman
-@using Game.Engine.ECS.Racer
-@using System.Text.Json
 @using Microsoft.JSInterop
 @inject IJSRuntime JS
-@inject EcsSimulation EcsSim
-@inject TetrisSimulation TetrisSim
-@inject SnakeSimulation SnakeSim
-@inject BreakoutSimulation BreakoutSim
-@inject AsteroidsSimulation AsteroidsSim
-@inject PacmanSimulation PacmanSim
-@inject RacerSimulation RacerSim
+@inject SimHost Sims
 @implements IDisposable
 
 <Routes />
 
 @code {
-    private static readonly JsonSerializerOptions JsonOpts = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-    };
+    private DotNetObjectReference<CommandHandler>? _commandRef;
 
-    private readonly List<Action> _unsubs = [];
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    protected override void OnAfterRender(bool firstRender)
     {
         if (!firstRender) return;
 
         // Register the command handler so scenes can call postCommand → C# sims.
-        await JS.InvokeVoidAsync("registerGameWasmProvider",
-            DotNetObjectReference.Create(new CommandHandler(
-                TetrisSim, SnakeSim, BreakoutSim, AsteroidsSim, PacmanSim, RacerSim)));
-
-        // Subscribe to each sim's render signal and deliver JSON to JS.
-        Subscribe<EcsRenderSignal>(EcsSim, "sprite-move");
-        Subscribe<TetrisRenderSignal>(TetrisSim, "tetris-move");
-        Subscribe<SnakeRenderSignal>(SnakeSim, "snake-move");
-        Subscribe<BreakoutRenderSignal>(BreakoutSim, "breakout-move");
-        Subscribe<AsteroidsRenderSignal>(AsteroidsSim, "asteroids-move");
-        Subscribe<PacmanRenderSignal>(PacmanSim, "pacman-move");
-        Subscribe<RacerRenderSignal>(RacerSim, "racer-move");
-    }
-
-    private void Subscribe<T>(dynamic sim, string eventName)
-    {
-        Action<T> handler = signal =>
-        {
-            var json = JsonSerializer.Serialize(signal, JsonOpts);
-            _ = JS.InvokeVoidAsync("onRenderSignal", eventName, json);
-        };
-        sim.OnRenderSignal += handler;
-        _unsubs.Add(() => sim.OnRenderSignal -= handler);
+        // The sims themselves are created lazily by the SimHost on the scene's
+        // /api/{game}/connect handshake; render signals flow back through
+        // DirectRenderTransport → onRenderSignalBuffer (float32 buffers, no JSON).
+        _commandRef = DotNetObjectReference.Create(new CommandHandler(Sims));
+        ((IJSInProcessRuntime)JS).InvokeVoid("registerGameWasmProvider", _commandRef);
     }
 
     public void Dispose()
     {
-        foreach (var unsub in _unsubs) unsub();
+        _commandRef?.Dispose();
+        _commandRef = null;
     }
 }

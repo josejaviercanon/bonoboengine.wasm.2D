@@ -4,6 +4,12 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- ADR-007 Phase 2 performance: the interpreter was a major contributor to
+         the 60→2 FPS collapse. Release publishes AOT-compile the engine closure
+         (the engine is AOT-tested via Game.Tests.Aot); dev (dotnet watch) stays
+         interpreted for fast iteration. Requires the wasm-tools workload. -->
+    <RunAOTCompilation Condition="'$(Configuration)' == 'Release'">true</RunAOTCompilation>
+    <WasmStripIL Condition="'$(Configuration)' == 'Release'">true</WasmStripIL>
   </PropertyGroup>
 
   <ItemGroup>

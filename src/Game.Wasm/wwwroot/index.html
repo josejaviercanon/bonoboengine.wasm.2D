@@ -13,53 +13,98 @@
     <!-- Blazor WASM mounts the App component tree here. -->
     <div id="app">Loading...</div>
 
-    <!-- C# → JS bridge: register provider + deliver render signals. -->
+    <!-- C# → JS bridge (ADR-007 Phase 2): float32 signal buffers + command routing. -->
     <script>
         var _provider = null;
         var _commandRef = null;
+        var _pendingCommands = [];
 
-        window.onRenderSignal = function (eventName, json) {
+        function dispatchFloats(eventName, floats) {
             if (_provider && _provider._listeners) {
                 var cbs = _provider._listeners[eventName];
                 if (cbs) {
-                    for (var i = 0; i < cbs.length; i++) cbs[i](json);
+                    for (var i = 0; i < cbs.length; i++) cbs[i](floats);
                 }
             }
+        }
+
+        // DirectRenderTransport delivers (eventName, bytes, floatCount). The bytes
+        // arrive as a Uint8Array via Blazor's optimized byte-array interop (a
+        // base64 string is tolerated as a fallback); the Float32Array view over
+        // the same memory is handed straight to the scene's buffer listener —
+        // no JSON, no per-entity interop.
+        window.onRenderSignalBuffer = function (eventName, data, floatCount) {
+            var bytes = data;
+            if (typeof bytes === 'string') {
+                var bin = atob(bytes);
+                bytes = new Uint8Array(bin.length);
+                for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            }
+            if (!bytes || !bytes.buffer) return;
+            dispatchFloats(eventName, new Float32Array(bytes.buffer, bytes.byteOffset, floatCount));
         };
+
+        function postCommand(path, bodyJson) {
+            if (_commandRef) {
+                _commandRef.invokeMethodAsync('HandleCommand', path, bodyJson || null);
+            } else {
+                // Blazor may still be booting when the scene connects — queue the
+                // command and flush once the .NET reference is registered.
+                _pendingCommands.push([path, bodyJson || null]);
+            }
+            return Promise.resolve();
+        }
 
         window.registerGameWasmProvider = function (dotNetRef) {
             _commandRef = dotNetRef;
-            _provider = {
-                _listeners: {},
-                onSignal: function (eventName, data) {
-                    var cbs = this._listeners[eventName];
-                    if (cbs) {
-                        for (var i = 0; i < cbs.length; i++) cbs[i](data);
-                    }
-                },
-                postCommand: function (path, bodyJson) {
-                    if (_commandRef) {
-                        _commandRef.invokeMethodAsync('HandleCommand', path, bodyJson || null);
-                    }
-                    return Promise.resolve();
-                },
-                close: function () { }
+            if (!_provider) {
+                _provider = {
+                    _listeners: {},
+                    // Registration contract (LocalBufferProvider.onSignal): the
+                    // compiled scenes call this from SignalStream.addBufferListener
+                    // to subscribe; onRenderSignalBuffer dispatches into the list.
+                    onSignal: function (eventName, onData) {
+                        if (!this._listeners[eventName]) this._listeners[eventName] = [];
+                        this._listeners[eventName].push(onData);
+                    },
+                    postCommand: postCommand,
+                    close: function () { }
+                };
+            }
+            // The PixiJS module bundle dispatches 'pixi-bundle-ready' once it has
+            // attached window.registerLocalBufferProvider (see game.ts). Waiting on
+            // the event (with a polling fallback) replaces the previous fixed
+            // 50 ms retry loop.
+            var attach = function () {
+                window.registerLocalBufferProvider(_provider);
+                console.log('[Game.Wasm] provider registered');
             };
-            // The PixiJS module bundle attaches registerLocalBufferProvider at module
-            // evaluation; it may not be evaluated yet when Blazor first renders.
-            // Retry until it appears instead of crashing the interop call.
-            var attempts = 0;
-            (function register() {
-                if (typeof window.registerLocalBufferProvider === 'function') {
-                    window.registerLocalBufferProvider(_provider);
-                    console.log('[Game.Wasm] provider registered');
-                } else if (++attempts < 200) {
-                    setTimeout(register, 50);
-                } else {
-                    console.error('[Game.Wasm] registerLocalBufferProvider never appeared (10s)');
-                }
-            })();
+            if (typeof window.registerLocalBufferProvider === 'function') {
+                attach();
+            } else {
+                window.addEventListener('pixi-bundle-ready', attach, { once: true });
+                var attempts = 0;
+                (function poll() {
+                    if (typeof window.registerLocalBufferProvider === 'function') {
+                        window.removeEventListener('pixi-bundle-ready', attach);
+                        attach();
+                    } else if (++attempts < 200) {
+                        setTimeout(poll, 50);
+                    } else {
+                        console.error('[Game.Wasm] registerLocalBufferProvider never appeared (10s)');
+                    }
+                })();
+            }
+            for (var i = 0; i < _pendingCommands.length; i++) {
+                _commandRef.invokeMethodAsync('HandleCommand', _pendingCommands[i][0], _pendingCommands[i][1]);
+            }
+            _pendingCommands.length = 0;
         };
+
+        window.addEventListener('beforeunload', function () {
+            _commandRef = null;
+            _provider = null;
+        });
     </script>
 
     <!-- Same PixiJS bundle as Game.Web (shared local-buffer build). -->
@@ -67,10 +112,10 @@
 
     <!--
         WASM bootstrap: Blazor boots first and renders App.razor (which creates
-        #pixi-viewport[data-message] inside #app). This script polls until both
-        initGame AND #pixi-viewport exist before starting PixiJS. In WASM mode
-        there is no SSR payload, so data-message is empty — fall back to a
-        default tetris scene.
+        #pixi-viewport[data-message] inside #app). The bundle dispatches
+        'pixi-bundle-ready' once its globals exist; this waits for that event and
+        the viewport element before starting PixiJS. In WASM mode there is no SSR
+        payload, so data-message is empty — fall back to a default tetris scene.
     -->
     <script>
         function startPixi() {
@@ -96,6 +141,10 @@
         }
 
         window.addEventListener('load', function () {
+            if (typeof initGame === 'function' && document.getElementById('pixi-viewport')) {
+                startPixi();
+                return;
+            }
             var attempts = 0;
             (function waitForBundle() {
                 if (typeof initGame === 'function' && document.getElementById('pixi-viewport')) {

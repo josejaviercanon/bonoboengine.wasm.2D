@@ -4,6 +4,7 @@ import type { SceneBuilder } from './types';
 import { publishCSharpStats } from '../stats/overlays';
 import { SnapshotBuffer, lerp, lerpWrapped } from './interpolation';
 import { connectSignalStream, type SignalStream } from './signalSource';
+import { BUFFER_HEADER_LENGTH, floatBool, readSignalHeader, type EntityDecoder } from './bufferLayout';
 
 interface RacerSettings {
     lanes: number;
@@ -1089,6 +1090,68 @@ export const racerScene: SceneBuilder = async (app, params) => {
             console.error('[pixi-debug] racer-move parse failed:', error);
         }
     });
+
+    // ADR-007 Phase 3: float32 buffer decoder for the co-located WASM host.
+    // Decoded straight from shared-memory Float32Array — no JSON.parse, no network.
+    // Only fires in local-buffer bundles; both listeners coexist without branching.
+    // Layout: header(6) + extras(18) = player(9) + settings(7) + lapCompleted +
+    // collided, then entities × stride 6 (id, z, offset, speed, percent, spriteKind).
+    // Must match SignalBufferEncoders.Encode(RacerRenderSignal, …) in Game.Engine.
+    const RACER_BUFFER_EXTRAS = 18;
+    const RACER_BUFFER_ENTITY_BASE = BUFFER_HEADER_LENGTH + RACER_BUFFER_EXTRAS;
+
+    const decodeRacerCar: EntityDecoder<RacerCarState> = (floats, offset) => ({
+        id: floats[offset],
+        z: floats[offset + 1],
+        offset: floats[offset + 2],
+        speed: floats[offset + 3],
+        percent: floats[offset + 4],
+        spriteKind: floats[offset + 5],
+    });
+
+    stream?.addBufferListener('racer-move', (floats) => {
+        try {
+            const header = readSignalHeader(floats);
+            const cars: RacerCarState[] = [];
+            for (let i = 0; i < header.entityCount; i++) {
+                cars.push(decodeRacerCar(floats, RACER_BUFFER_ENTITY_BASE + i * header.stride));
+            }
+            const e = BUFFER_HEADER_LENGTH;
+            applySignal({
+                seq: header.seq,
+                entityCount: header.entityCount,
+                tickMs: header.tickMs,
+                stepMs: header.stepMs,
+                epoch: header.epoch,
+                player: {
+                    x: floats[e],
+                    z: floats[e + 1],
+                    speed: floats[e + 2],
+                    currentLapTime: floats[e + 3],
+                    lastLapTime: floats[e + 4],
+                    fastLapTime: floats[e + 5],
+                    lap: floats[e + 6],
+                    steer: floats[e + 7],
+                    uphill: floatBool(floats[e + 8]),
+                },
+                cars,
+                settings: {
+                    lanes: floats[e + 9],
+                    roadWidth: floats[e + 10],
+                    cameraHeight: floats[e + 11],
+                    drawDistance: floats[e + 12],
+                    fieldOfView: floats[e + 13],
+                    fogDensity: floats[e + 14],
+                    resolutionScale: floats[e + 15],
+                },
+                lapCompleted: floatBool(floats[e + 16]),
+                collided: floatBool(floats[e + 17]),
+            });
+        } catch (error: unknown) {
+            console.error('[pixi-debug] racer-move buffer decode failed:', error);
+        }
+    });
+
     stream?.onInterrupted(() => dbg('SSE connection error'));
 
     playerInterpolation.ingest([{ id: 0, ...player }]);

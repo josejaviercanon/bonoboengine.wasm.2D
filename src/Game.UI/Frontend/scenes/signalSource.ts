@@ -109,7 +109,7 @@ export function connectSignalStream(url: string | undefined): SignalStream | nul
             'Either run it under that host, or rebuild the frontend with `npm run build:web` (SSE mode).');
         return null;
     }
-    return {
+    const stream: SignalStream = {
         // No JSON-text path in local-buffer bundles; registered text listeners
         // simply never fire (the buffer listener is the live one).
         addSignalListener: () => { /* no-op in local-buffer bundles */ },
@@ -125,4 +125,23 @@ export function connectSignalStream(url: string | undefined): SignalStream | nul
         close: () => provider.close?.(),
         onInterrupted: () => { /* in-memory bridge never disconnects */ }
     };
+    // Lazily create the matching simulation on the co-located host (ADR-007
+    // Phase 2): unvisited games never start their 60 Hz timers.
+    postConnectHandshake(stream, url);
+    return stream;
 }
+
+/**
+ * ADR-007 Phase 2: the co-located host creates simulations lazily, so each
+ * scene announces itself on connect. The SSE stream URL (`/api/{game}/stream`)
+ * is the only game identity the scene carries in both transport shapes —
+ * derive the game key from it and post the no-op `/api/{game}/connect`
+ * command. In SSE bundles this helper does nothing (the server sims always run).
+ */
+function postConnectHandshake(stream: SignalStream, url: string | undefined): void {
+    if (__RENDER_SOURCE__ !== 'local-buffer') return;
+    const gameKey = url?.match(/^\/?api\/([a-z-]+)\/stream$/)?.[1];
+    if (!gameKey) return;
+    void stream.postCommand(`/api/${gameKey}/connect`);
+}
+

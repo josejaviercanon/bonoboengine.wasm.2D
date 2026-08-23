@@ -3,6 +3,7 @@ import { sound } from '@pixi/sound';
 import type { SceneBuilder } from './types';
 import { SnapshotBuffer, lerp } from './interpolation';
 import { connectSignalStream, type SignalStream } from './signalSource';
+import { BUFFER_HEADER_LENGTH, floatBool, type EntityDecoder } from './bufferLayout';
 
 interface BreakoutSpriteState {
     id: number;
@@ -295,6 +296,61 @@ export const breakoutScene: SceneBuilder = (app, params) => {
             }
         } catch (err) {
             console.error('[pixi-debug] breakout-move parse failed:', err);
+        }
+    });
+
+    // ADR-007 Phase 3: float32 buffer decoder for the co-located WASM host.
+    // Decoded straight from shared-memory Float32Array — no JSON.parse, no network.
+    // Only fires in local-buffer bundles; both listeners coexist without branching.
+    // Layout: header(6) + extras(9) + entities × stride 7 (id, x, y, w, h, r, g, b).
+    // Must match SignalBufferEncoders.Encode(BreakoutRenderSignal, …) in Game.Engine.
+    const BREAKOUT_BUFFER_EXTRAS = 9;
+    const BREAKOUT_BUFFER_ENTITY_BASE = BUFFER_HEADER_LENGTH + BREAKOUT_BUFFER_EXTRAS;
+
+    const decodeBreakoutSprite: EntityDecoder<BreakoutSpriteState> = (floats, offset) => ({
+        id: floats[offset],
+        x: floats[offset + 1],
+        y: floats[offset + 2],
+        width: floats[offset + 3],
+        height: floats[offset + 4],
+        r: floats[offset + 5],
+        g: floats[offset + 6],
+        b: floats[offset + 7],
+    });
+
+    stream.addBufferListener('breakout-move', (floats) => {
+        try {
+            const header = interpolation.ingestFromBuffer(floats, decodeBreakoutSprite, BREAKOUT_BUFFER_ENTITY_BASE);
+            if (!header) return;
+            stepMs = Math.max(1, header.stepMs);
+
+            const extras = BUFFER_HEADER_LENGTH;
+            const score = floats[extras];
+            const lives = floats[extras + 1];
+            const level = floats[extras + 2];
+            const gameOver = floatBool(floats[extras + 3]);
+            const started = floatBool(floats[extras + 4]);
+
+            setGameState(score, lives, level, gameOver, started);
+
+            if (floatBool(floats[extras + 5])) {
+                dbg('event: brick hit - score', score);
+                playSound(BRICK_SOUND_ALIAS, 'breakout-brick.mp3');
+            }
+            if (floatBool(floats[extras + 6])) {
+                dbg('event: paddle hit');
+                playSound(PADDLE_SOUND_ALIAS, 'breakout-paddle.mp3');
+            }
+            if (floatBool(floats[extras + 7])) {
+                dbg('event: level up -> level', level + 1);
+                playSound(LEVELUP_SOUND_ALIAS, 'breakout-levelup.mp3');
+            }
+            if (floatBool(floats[extras + 8])) {
+                dbg('event: lost a life -> lives', lives);
+                playSound(LOSELIFE_SOUND_ALIAS, 'breakout-loselife.mp3');
+            }
+        } catch (err) {
+            console.error('[pixi-debug] breakout-move buffer decode failed:', err);
         }
     });
     const cleanup = () => {

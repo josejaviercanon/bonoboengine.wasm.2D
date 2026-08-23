@@ -175,3 +175,8 @@ window.toggleCSharpStats = toggleCSharpStats;
 // ADR-007 Phase 2/3: the co-located Game.Wasm host registers its in-process
 // command/signal bridge through this global (see wwwroot/index.html of that host).
 window.registerLocalBufferProvider = registerLocalBufferProvider;
+
+// Module evaluation finished — all globals above exist. The Game.Wasm host
+// listens for this event instead of polling for registerLocalBufferProvider.
+window.dispatchEvent(new Event('pixi-bundle-ready'));
+

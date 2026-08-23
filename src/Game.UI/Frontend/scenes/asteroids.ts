@@ -9,6 +9,7 @@ import type { SceneBuilder } from './types';
 import { publishCSharpStats } from '../stats/overlays';
 import { SnapshotBuffer, clampedDeltaSeconds, lerpAngle, lerpWrapped } from './interpolation';
 import { connectSignalStream, type SignalStream } from './signalSource';
+import { BUFFER_HEADER_LENGTH, decodeEntities, floatBool, type EntityDecoder } from './bufferLayout';
 
 interface AsteroidSpriteState {
     id: number;
@@ -704,11 +705,8 @@ export const asteroidsScene: SceneBuilder = (app, params) => {
     stream = connectSignalStream(a.streamUrl);
     if (!stream) return;
     dbg('SSE connected:', a.streamUrl);
-    stream.addSignalListener('asteroids-move', (data) => {
+    const applySignal = (signal: AsteroidsRenderSignal): void => {
         try {
-            const parsed: unknown = JSON.parse(data);
-            if (!isAsteroidsRenderSignal(parsed)) throw new Error('invalid asteroids render signal');
-            const signal = parsed;
             publishCSharpStats({ seq: signal.seq, entityCount: signal.entityCount, tickMs: signal.tickMs });
             stepMs = Math.max(1, signal.stepMs ?? 1000 / 60);
             // New epoch = server-side reset (start/restart): drop client-side
@@ -758,7 +756,69 @@ export const asteroidsScene: SceneBuilder = (app, params) => {
                 loopSound('asteroids-thrust', 'asteroids-thrust.wav', thrustOn);
             }
         } catch (err) {
+            console.error('[pixi-debug] asteroids-move apply failed:', err);
+        }
+    };
+
+    stream.addSignalListener('asteroids-move', (data) => {
+        try {
+            const parsed: unknown = JSON.parse(data);
+            if (!isAsteroidsRenderSignal(parsed)) throw new Error('invalid asteroids render signal');
+            applySignal(parsed);
+        } catch (err) {
             console.error('[pixi-debug] asteroids-move parse failed:', err);
+        }
+    });
+
+    // ADR-007 Phase 3: float32 buffer decoder for the co-located WASM host.
+    // Decoded straight from shared-memory Float32Array — no JSON.parse, no network.
+    // Only fires in local-buffer bundles; both listeners coexist without branching.
+    // Layout: header(6) + extras(12) + entities × stride 11
+    // (id, x, y, rotation, vx, vy, kind, size, r, g, b).
+    // Must match SignalBufferEncoders.Encode(AsteroidsRenderSignal, …) in Game.Engine.
+    const ASTEROIDS_BUFFER_EXTRAS = 12;
+    const ASTEROIDS_BUFFER_ENTITY_BASE = BUFFER_HEADER_LENGTH + ASTEROIDS_BUFFER_EXTRAS;
+
+    const decodeAsteroidSprite: EntityDecoder<AsteroidSpriteState> = (floats, offset) => ({
+        id: floats[offset],
+        x: floats[offset + 1],
+        y: floats[offset + 2],
+        rotation: floats[offset + 3],
+        vx: floats[offset + 4],
+        vy: floats[offset + 5],
+        kind: floats[offset + 6],
+        size: floats[offset + 7],
+        r: floats[offset + 8],
+        g: floats[offset + 9],
+        b: floats[offset + 10],
+    });
+
+    stream.addBufferListener('asteroids-move', (floats) => {
+        try {
+            const { header, states } = decodeEntities(floats, decodeAsteroidSprite, ASTEROIDS_BUFFER_ENTITY_BASE);
+            const extras = BUFFER_HEADER_LENGTH;
+            applySignal({
+                seq: header.seq,
+                entityCount: header.entityCount,
+                tickMs: header.tickMs,
+                stepMs: header.stepMs,
+                epoch: header.epoch,
+                sprites: states,
+                score: floats[extras],
+                highScore: floats[extras + 1],
+                lives: floats[extras + 2],
+                level: floats[extras + 3],
+                gameOver: floatBool(floats[extras + 4]),
+                started: floatBool(floats[extras + 5]),
+                thrustOn: floatBool(floats[extras + 6]),
+                exploded: floatBool(floats[extras + 7]),
+                fired: floatBool(floats[extras + 8]),
+                saucerSpawned: floatBool(floats[extras + 9]),
+                levelUp: floatBool(floats[extras + 10]),
+                lifeGained: floatBool(floats[extras + 11]),
+            });
+        } catch (err) {
+            console.error('[pixi-debug] asteroids-move buffer decode failed:', err);
         }
     });
 

@@ -8,6 +8,7 @@ using Game.Engine.ECS.Racer;
 using Game.Engine.ECS.Snake;
 using Game.Engine.ECS.Tetris;
 using Game.Examples;
+using Game.Web;
 using Game.Web.Components;
 using Game.UI;
 
@@ -22,6 +23,7 @@ builder.Services.AddSingleton<BreakoutSimulation>();
 builder.Services.AddSingleton<PacmanSimulation>();
 builder.Services.AddSingleton<AsteroidsSimulation>();
 builder.Services.AddSingleton<RacerSimulation>();
+builder.Services.AddSingleton<Game.Examples.IExampleSims, ServerExampleSims>();
 
 var app = builder.Build();
 

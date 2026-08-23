@@ -5,16 +5,10 @@
 @using Game.Engine.ECS.Asteroids
 @using Game.Engine.ECS.Breakout
 @using Game.Engine.ECS.Pacman
+@inject IExampleSims Sims
 @using Game.Engine.ECS.Racer
 @using Game.Engine.ECS.Snake
 @using Game.Engine.ECS.Tetris
-@inject EcsSimulation Ecs
-@inject SnakeSimulation Snake
-@inject TetrisSimulation Tetris
-@inject BreakoutSimulation Breakout
-@inject PacmanSimulation Pacman
-@inject AsteroidsSimulation Asteroids
-@inject RacerSimulation Racer
 
 @code {
     [Parameter] public string ExampleId { get; set; } = string.Empty;
@@ -27,42 +21,42 @@
     {
         null => string.Empty,
         { Id: "ecs/sprites" } => JsonSerializer.Serialize(
-            new ExamplePayload(example.Id, example.Title, example.SourceUrl, Ecs.Snapshot(), "/api/ecs/stream"),
+            new ExamplePayload(example.Id, example.Title, example.SourceUrl, Sims.Ecs.Snapshot(), "/api/ecs/stream"),
             jsonOptions),
         { Id: "games/snake" } => JsonSerializer.Serialize(
             new ExamplePayload(example.Id, example.Title, example.SourceUrl,
-                Snake: new SnakeScenePayload(Snake.Snapshot(), Snake.Score, Snake.IsGameOver, Snake.IsStarted,
+                Snake: new SnakeScenePayload(Sims.Snake.Snapshot(), Sims.Snake.Score, Sims.Snake.IsGameOver, Sims.Snake.IsStarted,
                     SnakeSimulation.GridWidth, SnakeSimulation.GridHeight, SnakeSimulation.CellSize, "/api/snake/stream")),
             jsonOptions),
         { Id: "games/tetris" } => JsonSerializer.Serialize(
             new ExamplePayload(example.Id, example.Title, example.SourceUrl,
-                Tetris: new TetrisScenePayload(Tetris.Snapshot(), Tetris.Score, Tetris.Rows, Tetris.Level,
-                    Tetris.IsGameOver, Tetris.IsStarted,
+                Tetris: new TetrisScenePayload(Sims.Tetris.Snapshot(), Sims.Tetris.Score, Sims.Tetris.Rows, Sims.Tetris.Level,
+                    Sims.Tetris.IsGameOver, Sims.Tetris.IsStarted,
                     TetrisSimulation.GridWidth, TetrisSimulation.GridHeight, TetrisSimulation.CellSize, "/api/tetris/stream")),
             jsonOptions),
         { Id: "games/breakout" } => JsonSerializer.Serialize(
             new ExamplePayload(example.Id, example.Title, example.SourceUrl,
-                Breakout: new BreakoutScenePayload(Breakout.Snapshot(), Breakout.Score, Breakout.Lives, Breakout.Level,
-                    Breakout.IsGameOver, Breakout.IsStarted,
+                Breakout: new BreakoutScenePayload(Sims.Breakout.Snapshot(), Sims.Breakout.Score, Sims.Breakout.Lives, Sims.Breakout.Level,
+                    Sims.Breakout.IsGameOver, Sims.Breakout.IsStarted,
                     BreakoutConfig.CourtWidth, BreakoutConfig.CourtHeight, BreakoutConfig.ChunkSize, "/api/breakout/stream")),
             jsonOptions),
         { Id: "games/pacman" } => JsonSerializer.Serialize(
             new ExamplePayload(example.Id, example.Title, example.SourceUrl,
-                Pacman: new PacmanScenePayload(Pacman.Snapshot(), Pacman.MazeRows, Pacman.Score, Pacman.Lives,
-                    Pacman.Level, Pacman.PelletsRemaining, Pacman.IsGameOver, Pacman.IsStarted,
+                Pacman: new PacmanScenePayload(Sims.Pacman.Snapshot(), Sims.Pacman.MazeRows, Sims.Pacman.Score, Sims.Pacman.Lives,
+                    Sims.Pacman.Level, Sims.Pacman.PelletsRemaining, Sims.Pacman.IsGameOver, Sims.Pacman.IsStarted,
                     PacmanSimulation.MazeWidth, PacmanSimulation.MazeHeight, PacmanSimulation.CellSize,
                     "/api/pacman/stream")),
             jsonOptions),
         { Id: "games/asteroids" } => JsonSerializer.Serialize(
             new ExamplePayload(example.Id, example.Title, example.SourceUrl,
-                Asteroids: new AsteroidsScenePayload(Asteroids.Snapshot(), Asteroids.Score, Asteroids.HighScore,
-                    Asteroids.Lives, Asteroids.Level, Asteroids.IsGameOver, Asteroids.IsStarted,
+                Asteroids: new AsteroidsScenePayload(Sims.Asteroids.Snapshot(), Sims.Asteroids.Score, Sims.Asteroids.HighScore,
+                    Sims.Asteroids.Lives, Sims.Asteroids.Level, Sims.Asteroids.IsGameOver, Sims.Asteroids.IsStarted,
                     AsteroidsConfig.CourtWidth, AsteroidsConfig.CourtHeight, "/api/asteroids/stream")),
             jsonOptions),
         { Id: "games/racer" } => JsonSerializer.Serialize(
             new ExamplePayload(example.Id, example.Title, example.SourceUrl,
-                Racer: new RacerScenePayload(Racer.TrackSnapshot(), Racer.PlayerSnapshot(), Racer.SnapshotCars(),
-                    Racer.Settings, "/api/racer/stream")),
+                Racer: new RacerScenePayload(Sims.Racer.TrackSnapshot(), Sims.Racer.PlayerSnapshot(), Sims.Racer.SnapshotCars(),
+                    Sims.Racer.Settings, "/api/racer/stream")),
             jsonOptions),
         _ => JsonSerializer.Serialize(new ExamplePayload(example.Id, example.Title, example.SourceUrl), jsonOptions),
     };

@@ -1,7 +1,8 @@
 import { Assets, Sprite } from 'pixi.js';
 import type { SceneBuilder } from './types';
 import { publishCSharpStats } from '../stats/overlays';
-import { connectSignalStream } from './signalSource';
+import { connectSignalStream, RENDER_SOURCE } from './signalSource';
+import { BUFFER_HEADER_LENGTH } from './bufferLayout';
 
 interface EcsSpriteState {
     id: number;
@@ -49,7 +50,8 @@ export const ecsSpritesScene: SceneBuilder = async (app, params) => {
         sprites.set(state.id, sprite);
     }
 
-    if (!p.streamUrl) return;
+    // SSE requires a stream URL; local-buffer ignores it (in-process provider).
+    if (RENDER_SOURCE === 'sse' && !p.streamUrl) return;
 
     const stream = connectSignalStream(p.streamUrl);
     if (!stream) return;
@@ -67,6 +69,28 @@ export const ecsSpritesScene: SceneBuilder = async (app, params) => {
             console.error('[pixi-debug] ECS sprite-move parse failed:', err);
         }
     });
+
+    // ADR-007 Phase 3: float32 buffer decoder for the co-located WASM host.
+    // Only fires in local-buffer bundles; mirrors the SSE semantics above
+    // (positions applied directly — this scene keeps no interpolation buffer).
+    // Layout: header(6) + entities × stride 6 (id, x, y, r, g, b), no extras.
+    // Must match SignalBufferEncoders.Encode(EcsRenderSignal, …) in Game.Engine.
+    stream.addBufferListener('sprite-move', (floats) => {
+        try {
+            const entityCount = floats[2];
+            publishCSharpStats({ seq: floats[0], entityCount, tickMs: floats[5] });
+            for (let i = 0; i < entityCount; i++) {
+                const offset = BUFFER_HEADER_LENGTH + i * 6;
+                const sprite = sprites.get(floats[offset]);
+                if (sprite && !sprite.destroyed) {
+                    sprite.position.set(floats[offset + 1], floats[offset + 2]);
+                }
+            }
+        } catch (err) {
+            console.error('[pixi-debug] ECS sprite-move buffer decode failed:', err);
+        }
+    });
+
     stream.onInterrupted(() => stream.close());
     window.addEventListener('beforeunload', () => stream.close());
 };

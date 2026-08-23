@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Game.Engine.ECS.Asteroids;
 using Game.Engine.ECS.Breakout;
 using Game.Engine.ECS.Pacman;
@@ -11,41 +12,37 @@ using Microsoft.JSInterop;
 namespace Game.Wasm;
 
 /// <summary>
+///     Source-generated JSON metadata for the command request bodies (AOT/trim
+///     safe — no reflection deserialization on the mono-wasm interpreter path).
+/// </summary>
+[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
+[JsonSerializable(typeof(TetrisInputRequest))]
+[JsonSerializable(typeof(SnakeInputRequest))]
+[JsonSerializable(typeof(PacmanInputRequest))]
+[JsonSerializable(typeof(BreakoutInputRequest))]
+[JsonSerializable(typeof(AsteroidsInputRequest))]
+[JsonSerializable(typeof(RacerInputRequest))]
+[JsonSerializable(typeof(RacerConfigRequest))]
+internal sealed partial class CommandJsonContext : JsonSerializerContext;
+
+/// <summary>
 ///     Routes <c>postCommand</c> calls from the TypeScript scenes to the
 ///     authoritative simulation methods. Invoked from JS via
 ///     <c>DotNetObjectReference</c> — the provider's <c>postCommand</c> calls
 ///     <c>invokeMethodAsync('HandleCommand', path, bodyJson)</c>.
 ///     Each path maps to one game + action; the body is the JSON request the
-///     scene would have POSTed to the Game.Web HTTP endpoint.
+///     scene would have POSTed to the Game.Web HTTP endpoint. Simulations are
+///     created lazily by the <see cref="SimHost"/> — the scene's
+///     <c>/api/{game}/connect</c> handshake creates the matching sim without
+///     side effects, so unvisited games never start their 60 Hz timers.
 /// </summary>
 public sealed class CommandHandler
 {
-    private readonly TetrisSimulation _tetris;
-    private readonly SnakeSimulation _snake;
-    private readonly BreakoutSimulation _breakout;
-    private readonly AsteroidsSimulation _asteroids;
-    private readonly PacmanSimulation _pacman;
-    private readonly RacerSimulation _racer;
+    private readonly SimHost _sims;
 
-    private static readonly JsonSerializerOptions JsonOpts = new()
+    public CommandHandler(SimHost sims)
     {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-    };
-
-    public CommandHandler(
-        TetrisSimulation tetris,
-        SnakeSimulation snake,
-        BreakoutSimulation breakout,
-        AsteroidsSimulation asteroids,
-        PacmanSimulation pacman,
-        RacerSimulation racer)
-    {
-        _tetris = tetris;
-        _snake = snake;
-        _breakout = breakout;
-        _asteroids = asteroids;
-        _pacman = pacman;
-        _racer = racer;
+        _sims = sims;
     }
 
     [JSInvokable("HandleCommand")]
@@ -99,15 +96,20 @@ public sealed class CommandHandler
     {
         switch (action)
         {
+            case "connect":
+                _sims.Connect("tetris");
+                break;
             case "input":
-                var req = JsonSerializer.Deserialize<TetrisInputRequest>(bodyJson ?? "{}", JsonOpts);
-                _tetris.QueueInput(req.Command);
+                // bodyJson defaults to "{}" so Deserialize only returns null for a literal
+                // "null" payload, which the TS signalSource never sends.
+                var req = JsonSerializer.Deserialize(bodyJson ?? "{}", CommandJsonContext.Default.TetrisInputRequest)!;
+                _sims.Tetris.QueueInput(req.Command);
                 break;
             case "start":
-                _tetris.Start();
+                _sims.Tetris.Start();
                 break;
             case "restart":
-                _tetris.Reset();
+                _sims.Tetris.Reset();
                 break;
         }
     }
@@ -116,15 +118,18 @@ public sealed class CommandHandler
     {
         switch (action)
         {
+            case "connect":
+                _sims.Connect("snake");
+                break;
             case "input":
-                var req = JsonSerializer.Deserialize<SnakeInputRequest>(bodyJson ?? "{}", JsonOpts);
-                _snake.QueueDirection(req.Direction);
+                var req = JsonSerializer.Deserialize(bodyJson ?? "{}", CommandJsonContext.Default.SnakeInputRequest)!;
+                _sims.Snake.QueueDirection(req.Direction);
                 break;
             case "start":
-                _snake.Start();
+                _sims.Snake.Start();
                 break;
             case "restart":
-                _snake.Reset();
+                _sims.Snake.Reset();
                 break;
         }
     }
@@ -133,15 +138,18 @@ public sealed class CommandHandler
     {
         switch (action)
         {
+            case "connect":
+                _sims.Connect("breakout");
+                break;
             case "input":
-                var req = JsonSerializer.Deserialize<BreakoutInputRequest>(bodyJson ?? "{}", JsonOpts);
-                _breakout.QueueInput(req);
+                var req = JsonSerializer.Deserialize(bodyJson ?? "{}", CommandJsonContext.Default.BreakoutInputRequest);
+                _sims.Breakout.QueueInput(req);
                 break;
             case "start":
-                _breakout.Start();
+                _sims.Breakout.Start();
                 break;
             case "restart":
-                _breakout.Reset();
+                _sims.Breakout.Reset();
                 break;
         }
     }
@@ -150,15 +158,18 @@ public sealed class CommandHandler
     {
         switch (action)
         {
+            case "connect":
+                _sims.Connect("asteroids");
+                break;
             case "input":
-                var req = JsonSerializer.Deserialize<AsteroidsInputRequest>(bodyJson ?? "{}", JsonOpts);
-                _asteroids.QueueInput(req);
+                var req = JsonSerializer.Deserialize(bodyJson ?? "{}", CommandJsonContext.Default.AsteroidsInputRequest);
+                _sims.Asteroids.QueueInput(req);
                 break;
             case "start":
-                _asteroids.Start();
+                _sims.Asteroids.Start();
                 break;
             case "restart":
-                _asteroids.Reset();
+                _sims.Asteroids.Reset();
                 break;
         }
     }
@@ -167,15 +178,18 @@ public sealed class CommandHandler
     {
         switch (action)
         {
+            case "connect":
+                _sims.Connect("pacman");
+                break;
             case "input":
-                var req = JsonSerializer.Deserialize<PacmanInputRequest>(bodyJson ?? "{}", JsonOpts);
-                _pacman.QueueDirection(req.Direction);
+                var req = JsonSerializer.Deserialize(bodyJson ?? "{}", CommandJsonContext.Default.PacmanInputRequest)!;
+                _sims.Pacman.QueueDirection(req.Direction);
                 break;
             case "start":
-                _pacman.Start();
+                _sims.Pacman.Start();
                 break;
             case "restart":
-                _pacman.Reset();
+                _sims.Pacman.Reset();
                 break;
         }
     }
@@ -184,22 +198,25 @@ public sealed class CommandHandler
     {
         switch (action)
         {
+            case "connect":
+                _sims.Connect("racer");
+                break;
             case "input":
-                var req = JsonSerializer.Deserialize<RacerInputRequest>(bodyJson ?? "{}", JsonOpts);
-                _racer.QueueInput(req);
+                var req = JsonSerializer.Deserialize(bodyJson ?? "{}", CommandJsonContext.Default.RacerInputRequest);
+                _sims.Racer.QueueInput(req);
                 break;
             case "config":
-                var cfg = JsonSerializer.Deserialize<RacerConfigRequest>(bodyJson ?? "{}", JsonOpts);
-                _racer.ApplyConfig(cfg);
+                var cfg = JsonSerializer.Deserialize(bodyJson ?? "{}", CommandJsonContext.Default.RacerConfigRequest);
+                _sims.Racer.ApplyConfig(cfg);
                 break;
             case "pause":
-                _racer.Pause();
+                _sims.Racer.Pause();
                 break;
             case "resume":
-                _racer.Resume();
+                _sims.Racer.Resume();
                 break;
             case "restart":
-                _racer.Reset();
+                _sims.Racer.Reset();
                 break;
         }
     }

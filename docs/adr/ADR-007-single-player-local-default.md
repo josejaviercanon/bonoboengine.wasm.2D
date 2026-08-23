@@ -68,3 +68,33 @@ implicit.
   host deserializes it into the typed request (`TetrisInputRequest`,
   `SnakeInputRequest`, `BreakoutInputRequest`, `AsteroidsInputRequest`,
   `PacmanInputRequest`, `RacerInputRequest`/`RacerConfigRequest`).
+
+## Implementation Status (Phase 2/3 — 2026-08-22)
+
+Implemented. The co-located `Game.Wasm` host delivers render signals as float32
+buffers (no JSON, no reflection, no per-entity interop):
+
+- `Game.Engine/ECS/SignalBuffer.cs` — canonical layout constants +
+  `SignalBufferEncoders` (one `FloatLength`/`Encode` pair per signal). The TS
+  mirror is `Frontend/scenes/bufferLayout.ts`; the two files are the contract.
+- `Game.Engine/ECS/DirectRenderTransport.cs` — encodes each signal into a
+  growable byte buffer and delivers `(eventName, byte[], floatCount)`; `OnSignal`
+  still fires so the SSE host contract is unchanged. The unused JSON-based
+  `LocalRenderTransport` was deleted.
+- `Game.Wasm/WasmRenderBridge.cs` + `wwwroot/index.html` — bytes cross via
+  Blazor's optimized byte-array JS interop (`Uint8Array`), wrapped into a
+  `Float32Array` view and dispatched to the scene's buffer listeners.
+- `Game.Wasm/SimHost.cs` — sims are created lazily (example page render or the
+  `/api/{game}/connect` handshake posted by `connectSignalStream` in
+  local-buffer bundles); unvisited games never start their 60 Hz timers. This
+  plus the old per-signal JSON path was the cause of a 60→2 FPS collapse.
+- `Game.Examples/ExampleSims.cs` (`IExampleSims`) — example pages access sims
+  through a host-supplied accessor (`SimHost` in `Game.Wasm`, `ServerExampleSims`
+  adapter in `Game.Web`).
+- `CommandJsonContext` source-generated JSON (AOT-safe) for command bodies;
+  Release publishes set `RunAOTCompilation`/`WasmStripIL`.
+- All seven scenes have `addBufferListener` decoders; SSE listeners coexist
+  (dead-code-eliminated per bundle mode).
+
+Not yet done: `HEAPF32` zero-copy (the byte-array copy is memcpy-speed and
+measured at 60 FPS interpreted), scene-exit disposal of visited sims.

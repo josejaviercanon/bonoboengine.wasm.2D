@@ -129,9 +129,10 @@ The full PixiJS v8 stack is declared in `src/Game.UI/package.json`: `pixi.js`, `
 | Snake presentation layer: interpolation + authoritative red-food fall + immediate replacement food | Implemented (ADR-003/006) |
 | Render transport seam: `IRenderTransport<TSignal>` injected into all sims, `ServerRenderTransport` default, `SINGLE_PLAYER_LOCAL` build switches in `Game.Engine.csproj` | Implemented (ADR-007 Phase 1) |
 | Single-player-local default: `SINGLE_PLAYER_LOCAL` + `local-buffer` are the default builds; `fetch` POST exists only in the `--mode web` / `npm run build:web` multiplayer branch; scenes route all commands through `SignalStream.postCommand` (no raw `fetch` in scene code) | Implemented (ADR-007) |
-| TS `SnapshotBuffer.ingestFromBuffer` (typed-array ingest, same interpolation math) — consumed by tetris, snake, pacman buffer listeners | Implemented (ADR-007 Phase 3 TS half) |
-| `Game.Wasm` co-located host + `DirectRenderTransport` (pinned `float[]` -> `Float32Array`) + `LocalBufferProvider.postCommand` implementation | Target (ADR-007 Phase 2) |
-| `SpriteState` -> `TransformSnapshot` (velocity/rotation/tick) | Target |
+| TS `SnapshotBuffer.ingestFromBuffer` (typed-array ingest, same interpolation math) — consumed by all seven scene buffer listeners (tetris, snake, pacman, breakout, asteroids, ecs, racer) | Implemented (ADR-007 Phase 3) |
+| `Game.Wasm` co-located host: `DirectRenderTransport` (signal → `byte[]` → `Uint8Array`/`Float32Array` via optimized byte-array JS interop, layouts in `SignalBuffer.cs` ↔ `bufferLayout.ts`), lazy `SimHost` (per-game creation on page render / `/api/{game}/connect`), `CommandJsonContext` source-gen JSON, Release AOT flags | Implemented (ADR-007 Phase 2) |
+| `IExampleSims` seam — `ExampleHost` accesses sims through a host-supplied accessor (lazy in `Game.Wasm`, singleton adapter in `Game.Web`) | Implemented (ADR-007 Phase 2) |
+| `SpriteState` -> `TransformSnapshot` (velocity/rotation/tick) | Partial — snake/pacman/asteroids/racer entity states already carry temporal data (ADR-003); `SpriteState` (ecs/tetris/breakout) still lacks it |
 | Shared-memory `HEAPF32` zero-copy transfer | Target |
 | Box2D.NET for other games (Snake/Tetris/Breakout) | Target |
 | Rapier presentation physics (entity-selective, other games) | Target |

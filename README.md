@@ -311,10 +311,23 @@ cd ../..
 dotnet watch --project src/Game.Wasm
 ```
 
-The console prints a local URL (e.g., `https://localhost:5001`). Open it in
+The console prints a local URL (e.g., `http://127.0.0.1:63007`). Open it in
 Chrome/Edge/Firefox — the C# simulation starts in-browser and PixiJS renders
 the game scene. All input (`postCommand`) routes directly to the in-process
 sim via the `LocalBufferProvider` — no `fetch` POST, no EventSource.
+
+Render signals travel as float32 buffers: `DirectRenderTransport` encodes each
+batched signal into the canonical layout (`SignalBuffer.cs` ↔ `bufferLayout.ts`)
+and delivers it to `onRenderSignalBuffer` through Blazor's optimized byte-array
+JS interop — no JSON, no reflection. Simulations are created lazily per visited
+scene (`SimHost`), so only the game you open pays the 60 Hz tick cost.
+
+For best raw sim throughput, publish with AOT (needs
+`dotnet workload install wasm-tools`; dev `dotnet watch` stays interpreted):
+
+```powershell
+dotnet publish src/Game.Wasm -c Release   # RunAOTCompilation + WasmStripIL
+```
 
 ### How to Build and Run a Multiplayer Game (Server-Authoritative)
 

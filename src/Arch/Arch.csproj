@@ -33,7 +33,11 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Copyright>Apache2.0</Copyright>
 
-    <NoWarn>1701;1702;1591</NoWarn>
+    <!-- Vendored upstream code (genaray/Arch). Warnings suppressed to keep the local build
+         clean without diverging from upstream sources: nullability (8601/8602/8603/8767),
+         XML doc mismatches (1572/1573/1574), MsgPack analyzer, and Roslyn analyzer rules
+         triggered by the generator sources that ship inside this assembly (RS1036/RS1041). -->
+    <NoWarn>$(NoWarn);1701;1702;1591;8601;8602;8603;8767;1572;1573;1574;MsgPack013;MsgPack014;RS1036;RS1041</NoWarn>
 
     <Configurations>Debug;Debug-PureECS;Debug-Events;Release;Release-PureECS;Release-Events;</Configurations>
 
