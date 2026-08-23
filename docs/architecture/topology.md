@@ -132,6 +132,9 @@ The full PixiJS v8 stack is declared in `src/Game.UI/package.json`: `pixi.js`, `
 | TS `SnapshotBuffer.ingestFromBuffer` (typed-array ingest, same interpolation math) — consumed by all seven scene buffer listeners (tetris, snake, pacman, breakout, asteroids, ecs, racer) | Implemented (ADR-007 Phase 3) |
 | `Game.Wasm` co-located host: `DirectRenderTransport` (signal → `byte[]` → `Uint8Array`/`Float32Array` via optimized byte-array JS interop, layouts in `SignalBuffer.cs` ↔ `bufferLayout.ts`), lazy `SimHost` (per-game creation on page render / `/api/{game}/connect`), `CommandJsonContext` source-gen JSON, Release AOT flags | Implemented (ADR-007 Phase 2) |
 | `IExampleSims` seam — `ExampleHost` accesses sims through a host-supplied accessor (lazy in `Game.Wasm`, singleton adapter in `Game.Web`) | Implemented (ADR-007 Phase 2) |
+| `Game.Wasm` Release AOT publish — `RunAOTCompilation` + `WasmStripIL`, vendored Arch generic templates capped at arity 15 (`Helpers.ttinclude` `Amount=16`), verified 61 FPS under `dotnet-serve --fallback-file index.html`; source-gen `CommandJsonContext` (AOT-safe, no reflection) | Implemented (ADR-007 Phase 3) |
+| Interop hygiene — `App.razor` disposes `DotNetObjectReference`; `pixi-bundle-ready` event handshake (poll reduced to a 10 s fallback); `_commandRef`/`_provider` cleared on unload | Implemented (ADR-007 Phase 4) |
+| Docs — `topology.md`, `codebase-truth.md`, ADR-007, `README.md` (AOT publish + verify instructions) | Implemented (ADR-007 Phase 5) |
 | `SpriteState` -> `TransformSnapshot` (velocity/rotation/tick) | Partial — snake/pacman/asteroids/racer entity states already carry temporal data (ADR-003); `SpriteState` (ecs/tetris/breakout) still lacks it |
 | Shared-memory `HEAPF32` zero-copy transfer | Target |
 | Box2D.NET for other games (Snake/Tetris/Breakout) | Target |

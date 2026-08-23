@@ -104,6 +104,13 @@ buffers (no JSON, no reflection, no per-entity interop):
   builds). Verified 2026-08-23: Release publish links a 63.8 MB
   `dotnet.native.wasm` (12.5 MB brotli); tetris + snake run at 61 FPS with
   zero console errors under `dotnet-serve --fallback-file index.html`.
+- **Interop hygiene (Phase 4):** `App.razor` disposes the `DotNetObjectReference`; the
+  host waits on the bundle's `pixi-bundle-ready` event (50 ms poll reduced to a
+  10 s fallback); `_commandRef`/`_provider` are cleared on unload. A C#-side
+  per-rAF signal queue is explicitly **not** needed — `DirectRenderTransport`
+  already emits one interop call per batched signal (never per-entity), and
+  post-Phase-1-3 profiling shows 0.0 ms sim tick and full 61 FPS, so the
+  "post-profiling only" gate was not triggered.
 
 Not yet done: `HEAPF32` zero-copy (the byte-array copy is memcpy-speed and
 measured at 60 FPS interpreted), scene-exit disposal of visited sims.
