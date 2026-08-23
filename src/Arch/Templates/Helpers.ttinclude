@@ -2,7 +2,12 @@
 <#@ import namespace="System.Collections.Generic" #>
 <#+
 
-    public int Amount = 25;
+    // Vendored change (ADR-007 Phase 3): 16 instead of upstream's 25. Generates
+    // generic arities 2..15 (max T14). Mono's WebAssembly AOT compiler asserts
+    // `type_argc < 16` in mini-generic-sharing.c, so any arity >= 16 crashes
+    // `dotnet publish -c Release` (RunAOTCompilation). The generated .cs files
+    // were trimmed to match (T4 does not transform under the dotnet CLI).
+    public int Amount = 16;
 
 
     public string Indent(StringBuilder sb, int spaces)

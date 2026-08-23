@@ -95,6 +95,15 @@ buffers (no JSON, no reflection, no per-entity interop):
   Release publishes set `RunAOTCompilation`/`WasmStripIL`.
 - All seven scenes have `addBufferListener` decoders; SSE listeners coexist
   (dead-code-eliminated per bundle mode).
+- **Vendored Arch change for AOT:** Arch's T4 templates generated generic
+  members with up to 24 type arguments; mono's WASM AOT compiler asserts
+  `type_argc < 16` (mini-generic-sharing.c) and crashed `dotnet publish
+  -c Release`. The generated `Templates/*.cs` files were trimmed to max
+  arity 15 and both `Helpers.ttinclude` files set `Amount = 16` (T4 does not
+  transform under the dotnet CLI, so the .cs trim is authoritative for CLI
+  builds). Verified 2026-08-23: Release publish links a 63.8 MB
+  `dotnet.native.wasm` (12.5 MB brotli); tetris + snake run at 61 FPS with
+  zero console errors under `dotnet-serve --fallback-file index.html`.
 
 Not yet done: `HEAPF32` zero-copy (the byte-array copy is memcpy-speed and
 measured at 60 FPS interpreted), scene-exit disposal of visited sims.

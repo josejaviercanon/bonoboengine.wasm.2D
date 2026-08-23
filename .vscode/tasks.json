@@ -1,0 +1,32 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "serve-production-wasm",
+      "type": "shell",
+      "command": "dotnet-serve",
+      "args": [
+        "-d", "src/Game.Wasm/bin/Release/net10.0/publish/wwwroot",
+        "-p", "63008",
+        "--fallback-file", "index.html"
+      ],
+      "isBackground": true,
+      "problemMatcher": {
+        "pattern": [
+          {
+            "regexp": "^.*$",
+            "file": 1,
+            "location": 2,
+            "message": 3
+          }
+        ],
+        "background": {
+          "activeOnStart": true,
+          // Matches when dotnet-serve prints out its URL to the console
+          "beginsPattern": ".*",
+          "endsPattern": ".*(http://localhost:63008).*"
+        }
+      }
+    }
+  ]
+}

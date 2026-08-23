@@ -275,6 +275,7 @@ src/
 │   ├── wwwroot/dist/       # Output for Vite and Tailwind bundles (generated — never hand-edit)
 │   └── Frontend/           # PixiJS TypeScript engine + Tailwind CSS entry
 ├── Game.Maui/              # Native app shell wrapper (Blazor Hybrid)
+├── Game.Wasm/              # Blazor Wasm web assembly App host
 └── Game.Web/               # Blazor Web App host
 docs/
 ├── index.md                # Architecture source of truth
@@ -328,6 +329,18 @@ For best raw sim throughput, publish with AOT (needs
 ```powershell
 dotnet publish src/Game.Wasm -c Release   # RunAOTCompilation + WasmStripIL
 ```
+
+The Release build is AOT-compiled and IL-stripped — test it (production-only
+trimming/AOT bugs don't surface in dev). Serve the published output and check
+it in a browser:
+
+```powershell
+dotnet-serve -p 63008 --fallback-file index.html -d "src/Game.Wasm/bin/Release/net10.0/publish/wwwroot"
+```
+
+> **Note:** AOT requires the vendored Arch's generic templates capped at arity
+> 15 (`Helpers.ttinclude` `Amount = 16`); mono's WASM AOT compiler crashes on
+> arities ≥ 16. See ADR-007 §Implementation Status.
 
 ### How to Build and Run a Multiplayer Game (Server-Authoritative)
 

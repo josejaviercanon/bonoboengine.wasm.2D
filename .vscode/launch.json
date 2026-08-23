@@ -1,0 +1,28 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+
+    {
+      "name": "Run Production WASM Build",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:63008",
+      "webRoot": "${workspaceFolder}/wwwroot",
+      // Links to the task created in Step 1
+      "preLaunchTask": "serve-production-wasm"
+    },
+        {
+      "name": "Playwright: Production Smoke Tests",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "playwright",
+        "test"
+      ],
+      "console": "integratedTerminal",
+      // Links to the task created in Step 1
+      "preLaunchTask": "serve-production-wasm"
+    }
+  ]
+}

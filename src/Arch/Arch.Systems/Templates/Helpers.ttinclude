@@ -1,7 +1,10 @@
 ﻿<#@ import namespace="System.Text" #>
 <#@ import namespace="System.Collections.Generic" #>
 <#+
-    public int Amount = 25;
+    // Vendored change (ADR-007 Phase 3): 16 instead of upstream's 25 (see
+    // src/Arch/Templates/Helpers.ttinclude — mono WASM AOT generic-sharing
+    // limit). Generated GenericAttributes.cs was trimmed to match.
+    public int Amount = 16;
 
     public string Indent(StringBuilder sb, int spaces)
     {
