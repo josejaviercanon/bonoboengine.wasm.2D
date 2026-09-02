@@ -59,7 +59,7 @@ The Authoritative C# Architecture above splits the **Presentation Bridge** into 
 C# AUTHORITATIVE WORLD          ECS + Box2D.NET (target): gameplay physics, collisions, rules
         │  fixed timestep → RenderSnapshot (Tick, Pos, Velocity)
         ▼
-PRESENTATION WORLD              lightweight interpolation (default) + optional Rapier 2D
+PRESENTATION WORLD              lightweight interpolation (default) + optional box2d3-wasm 2D
         │  120/144/240 Hz visual
         ▼
 PIXIJS v8                       sprites, containers, animation, camera, particles, GPU
@@ -67,8 +67,8 @@ PIXIJS v8                       sprites, containers, animation, camera, particle
 
 - **Never** move simulation back-and-forth through JS interop every frame. Cross the boundary only via batched render snapshots.
 - **Domain ownership (ADR-006):** C# owns game rules, collision, gravity, character controllers, deterministic networking. PixiJS owns interpolation, sprite transforms/animation, camera smoothing, secondary motion (cloth/ragdoll), particle physics.
-- **Bridge status:** current = SSE `event: sprite-move` with batched `SpriteState[]` JSON (`/api/ecs/stream`); target = pinned shared memory + `HEAPF32` `Float32Array` view + client interpolation `P_render = P_prev + (P_curr − P_prev) × α` (ADR-003). Interpolation/Rapier-coupling implementation guide (math, per-entity `InterpState` buffer, kinematic mirroring): `docs/architecture/render-interpolation.md`.
-- **Physics:** Box2D.NET = authoritative (C# ECS loop, vendored at `src/Box2D.NET`, wired into `Game.Engine` and used by `AsteroidsSimulation`); Rapier `@dimforge/rapier2d` = optional presentation physics, entity-selective, used by the asteroids debris field (ADR-002, ADR-005).
+- **Bridge status:** current = SSE `event: sprite-move` with batched `SpriteState[]` JSON (`/api/ecs/stream`); target = pinned shared memory + `HEAPF32` `Float32Array` view + client interpolation `P_render = P_prev + (P_curr − P_prev) × α` (ADR-003). Interpolation/box2d3-wasm-coupling implementation guide (math, per-entity `InterpState` buffer, kinematic mirroring): `docs/architecture/render-interpolation.md`.
+- **Physics:** Box2D.NET = authoritative (C# ECS loop, vendored at `src/Box2D.NET`, wired into `Game.Engine` and used by `AsteroidsSimulation`); box2d3-wasm (Box2D v3 WASM) = optional presentation physics, entity-selective, used by the asteroids debris field (ADR-002, ADR-005).
 - **Skeletal animation:** glTF (`.glb`) is the asset contract, not the ECS architecture — two decoupled pipelines (authoring: AI+Blender→`.glb`; runtime: `.glb`→importer→ECS→PixiJS); the animation state machine belongs to the ECS (ADR-004).
 
 Full matrices (ecosystem integration, implementation status, packages) live in `docs/architecture/topology.md`. Decisions: `docs/adr/` (ADR-001…ADR-007).

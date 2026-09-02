@@ -4,7 +4,8 @@ import { GlowFilter } from 'pixi-filters';
 import { Emitter } from '@spd789562/particle-emitter';
 import type { EmitterConfigV3 } from '@spd789562/particle-emitter';
 import { sound } from '@pixi/sound';
-import RAPIER from '@dimforge/rapier2d';
+import Box2DFactory from 'box2d3-wasm';
+type Box2DModule = Awaited<ReturnType<typeof Box2DFactory>>;
 import type { SceneBuilder } from './types';
 import { publishCSharpStats } from '../stats/overlays';
 import { SnapshotBuffer, clampedDeltaSeconds, lerpAngle, lerpWrapped } from './interpolation';
@@ -284,7 +285,7 @@ const flameConfig = (texture: Texture): EmitterConfigV3 => ({
 });
 
 interface DebrisBody {
-    body: RAPIER.RigidBody;
+    body: ReturnType<Box2DModule['b2CreateBody']>;
     radius: number;
     born: number;
 }
@@ -311,7 +312,7 @@ function isAsteroidsRenderSignal(value: unknown): value is AsteroidsRenderSignal
  * Asteroids scene: the C# simulation owns the court (Box2D.NET authoritative physics,
  * ADR-002) and pushes one batched signal per 60 Hz tick over SSE. This scene only
  * interpolates and renders vector sprites (ADR-003/005), forwards held controls as
- * suggestions, and runs the presentation layer: particle-emitter bursts, Rapier
+ * suggestions, and runs the presentation layer: particle-emitter bursts, box2d3-wasm
  * debris (visual only) and a neon GlowFilter. C# is the sole authority.
  */
 export const asteroidsScene: SceneBuilder = (app, params) => {
@@ -450,36 +451,40 @@ export const asteroidsScene: SceneBuilder = (app, params) => {
         oneShotEmitters.push(emitter);
     };
 
-    // --- Presentation physics: Rapier debris (visual only, ADR-002/005). ------------
-    let physicsWorld: RAPIER.World | null = null;
+    // --- Presentation physics: box2d3-wasm debris (visual only, ADR-002/005). -------
+    let box2dMod: Box2DModule | null = null;
+    let physicsWorld: ReturnType<Box2DModule['b2CreateWorld']> | null = null;
     const debris: DebrisBody[] = [];
     const debrisLayer = new Graphics();
     court.addChild(debrisLayer);
+    const DEBRIS_SUBSTEPS = 4;
 
     const initPhysics = async () => {
         if (physicsWorld) return;
-        const initFn = (RAPIER as unknown as { init?: () => Promise<void> }).init;
-        if (initFn) await initFn();
-        physicsWorld = new RAPIER.World({ x: 0, y: 0 });
-        dbg('Rapier world initialized');
+        if (!box2dMod) box2dMod = await Box2DFactory();
+        const worldDef = box2dMod.b2DefaultWorldDef();
+        worldDef.gravity = new box2dMod.b2Vec2(0, 0);
+        physicsWorld = box2dMod.b2CreateWorld(worldDef);
+        dbg('box2d3-wasm world initialized');
     };
 
     const spawnDebris = async (x: number, y: number) => {
         await initPhysics();
-        if (!physicsWorld) return;
+        if (!physicsWorld || !box2dMod) return;
+        const box2d = box2dMod;
         for (let i = 0; i < 10; i++) {
             const radius = 2 + Math.random() * 4;
             const angle = Math.random() * Math.PI * 2;
             const speed = 120 + Math.random() * 240;
-            const body = physicsWorld.createRigidBody(
-                RAPIER.RigidBodyDesc.dynamic()
-                    .setTranslation(x, y)
-                    .setLinvel(Math.cos(angle) * speed, Math.sin(angle) * speed),
-            );
-            physicsWorld.createCollider(
-                RAPIER.ColliderDesc.cuboid(radius, radius).setRestitution(0.6).setFriction(0),
-                body,
-            );
+            const bodyDef = box2d.b2DefaultBodyDef();
+            bodyDef.type = box2d.b2BodyType.b2_dynamicBody;
+            bodyDef.position = new box2d.b2Vec2(x, y);
+            bodyDef.linearVelocity = new box2d.b2Vec2(Math.cos(angle) * speed, Math.sin(angle) * speed);
+            const body = box2d.b2CreateBody(physicsWorld, bodyDef);
+            const shapeDef = box2d.b2DefaultShapeDef();
+            shapeDef.material.friction = 0;
+            shapeDef.material.restitution = 0.6;
+            box2d.b2CreatePolygonShape(body, shapeDef, box2d.b2MakeBox(radius, radius));
             debris.push({ body, radius, born: performance.now() });
         }
     };
@@ -647,7 +652,7 @@ export const asteroidsScene: SceneBuilder = (app, params) => {
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
 
-    // --- Ticker: interpolation render + flame follow + particles + Rapier debris ----
+    // --- Ticker: interpolation render + flame follow + particles + box2d3-wasm debris ----
     const onTicker = (ticker: Ticker) => {
         const dt = clampedDeltaSeconds(ticker.deltaMS);
 
@@ -675,20 +680,19 @@ export const asteroidsScene: SceneBuilder = (app, params) => {
             emitter.update(dt);
         }
 
-        // Rapier debris (presentation only).
-        if (physicsWorld && debris.length > 0) {
-            physicsWorld.timestep = dt;
-            physicsWorld.step();
+        // box2d3-wasm debris (presentation only).
+        if (physicsWorld && box2dMod && debris.length > 0) {
+            box2dMod.b2World_Step(physicsWorld, dt, DEBRIS_SUBSTEPS);
             const now = performance.now();
             debrisLayer.clear();
             for (let i = debris.length - 1; i >= 0; i--) {
                 const piece = debris[i];
                 if (now - piece.born > 1800) {
-                    physicsWorld.removeRigidBody(piece.body);
+                    box2dMod.b2DestroyBody(piece.body);
                     debris.splice(i, 1);
                     continue;
                 }
-                const pos = piece.body.translation();
+                const pos = box2dMod.b2Body_GetPosition(piece.body);
                 debrisLayer.circle(pos.x, pos.y, piece.radius).fill(0xffa07a);
             }
         }
@@ -717,8 +721,8 @@ export const asteroidsScene: SceneBuilder = (app, params) => {
                     ignitedExplosions.clear();
                     for (const emitter of oneShotEmitters.splice(0)) emitter.destroy();
                     debrisLayer.clear();
-                    if (physicsWorld) {
-                        for (const piece of debris.splice(0)) physicsWorld.removeRigidBody(piece.body);
+                    if (physicsWorld && box2dMod) {
+                        for (const piece of debris.splice(0)) box2dMod.b2DestroyBody(piece.body);
                     }
                 }
                 lastEpoch = signal.epoch;
@@ -835,10 +839,11 @@ export const asteroidsScene: SceneBuilder = (app, params) => {
             emitter.destroy();
         }
         oneShotEmitters.length = 0;
-        if (physicsWorld) {
-            physicsWorld.free();
+        if (physicsWorld && box2dMod) {
+            box2dMod.b2DestroyWorld(physicsWorld);
         }
         physicsWorld = null;
+        box2dMod = null;
         debris.length = 0;
         sound.stop('asteroids-thrust');
         overlay.remove();

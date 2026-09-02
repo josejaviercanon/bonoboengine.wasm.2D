@@ -15,7 +15,7 @@ Engine-specific rules for the Bonobo engine: an authoritative C# simulation back
 - **ECS:** Arch — vendored as **source** under `src/Arch/` (core, systems, event bus, persistence, relationships, AOT source generator). **Not** a NuGet package. Linked into `Game.Engine` via `ProjectReference`.
 - **Source generators:** `src/Arch.Generators/` — a `netstandard2.0` Roslyn analyzer pack that links Arch's `Arch.Systems.SourceGenerator` + `Arch.AOT.SourceGenerator` + `Arch.EventBus` sources. Referenced from `Game.Engine` as an analyzer (`OutputItemType="Analyzer"`).
 - **Presentation:** PixiJS v8 — rendered client-side; bundled by Vite + TypeScript in `src/Game.UI/Frontend/`, output to `src/Game.UI/wwwroot/dist`.
-- **Physics (target, vendored-not-referenced):** `src/Box2D.NET` (authoritative gameplay physics, runs in the C# ECS loop, zero-interop raycasts/AABB) and `src/BrainAI` (pathfinding/AI). Neither is referenced by `Game.Engine.csproj` yet. Rapier (`@dimforge/rapier2d`) is optional JS-side presentation physics only — see ADR-002/ADR-005.
+- **Physics (target, vendored-not-referenced):** `src/Box2D.NET` (authoritative gameplay physics, runs in the C# ECS loop, zero-interop raycasts/AABB) and `src/BrainAI` (pathfinding/AI). Neither is referenced by `Game.Engine.csproj` yet. box2d3-wasm (Box2D v3 WASM) is optional JS-side presentation physics only — see ADR-002/ADR-005.
 - **UI:** Blazor components + Tailwind CSS v4 (in `src/Game.UI`, the shared Razor Class Library).
 - **Hosts:** `src/Game.Web` (Blazor Web App, static SSR) and `src/Game.Maui` (.NET MAUI Blazor Hybrid, Android default; iOS/MacCatalyst/Windows conditional).
 - **Serialization:** System.Text.Json with source generators (AOT-friendly, allocation-free). Planned.
@@ -347,11 +347,11 @@ public readonly record struct TransformSnapshot(
 [Component]
 public struct PresentationPhysicsComponent
 {
-    public PresentationPhysicsMode Mode; // Interpolate | Spring | Rapier2D | CustomGpu
+    public PresentationPhysicsMode Mode; // Interpolate | Spring | box2d3-wasm | CustomGpu
 }
 ```
 
-- `Enemy`/`Player` → `Interpolate`; `Camera` → `Spring`; `Cape`/`Debris`/`Ragdoll` → `Rapier2D`; `Particles` → `CustomGpu`. Presentation physics lives in PixiJS; the C# ECS is ignorant of cosmetic coordinates (ADR-005).
+- `Enemy`/`Player` → `Interpolate`; `Camera` → `Spring`; `Cape`/`Debris`/`Ragdoll` → `box2d3-wasm`; `Particles` → `CustomGpu`. Presentation physics lives in PixiJS; the C# ECS is ignorant of cosmetic coordinates (ADR-005).
 
 ## Integration with Core Rules
 

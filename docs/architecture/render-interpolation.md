@@ -1,6 +1,6 @@
 # Render Interpolation & Presentation-Physics Coupling — Implementation Guide
 
-> Reviewed blueprint for the dual-physics, asymmetric-language topology (C# Box2D.NET authoritative sim ← boundary → TypeScript PixiJS + optional Rapier2D presentation). Grounded in verified code: `src/Game.UI/Frontend/scenes/asteroids.ts` (reference pattern), `snake.ts`, and ADR-003/005/006. When code and prose disagree, verified files win.
+> Reviewed blueprint for the dual-physics, asymmetric-language topology (C# Box2D.NET authoritative sim ← boundary → TypeScript PixiJS + optional box2d3-wasm presentation). Grounded in verified code: `src/Game.UI/Frontend/scenes/asteroids.ts` (reference pattern), `snake.ts`, and ADR-003/005/006. When code and prose disagree, verified files win.
 
 ## 1. Mathematical Foundation
 
@@ -84,7 +84,7 @@ const onTicker = (ticker: Ticker) => {
 };
 ```
 
-`dt` clamping (`Math.min(deltaMS/1000, 1/30)`) matters for the particle emitters and any Rapier stepping — a background-tab stall must not inject a multi-second physics jump.
+`dt` clamping (`Math.min(deltaMS/1000, 1/30)`) matters for the particle emitters and any box2d3-wasm stepping — a background-tab stall must not inject a multi-second physics jump.
 
 ### Implementation status per scene
 
@@ -97,19 +97,18 @@ const onTicker = (ticker: Ticker) => {
 
 Extending generic `SpriteState` → `TransformSnapshot` (velocity/rotation/tick, ADR-003) plus this buffer pattern in `ecsSprites.ts` is the open bridge-evolution task.
 
-## 3. Coupling Rapier2D (presentation) with Box2D.NET (authoritative)
+## 3. Coupling box2d3-wasm (presentation) with Box2D.NET (authoritative)
 
-**Asymmetric rigidity:** authoritative bodies drive the presentation world; the presentation world never exerts forces back onto authoritative bodies. In the Rapier world, mirrored authoritative entities are `RigidBodyType.KinematicPositionBased`; pure presentation bodies (debris, sparks, cloth) are `RigidBodyType.Dynamic`. Collision resolution is one-way: kinematic → dynamic.
+**Asymmetric rigidity:** authoritative bodies drive the presentation world; the presentation world never exerts forces back onto authoritative bodies. In the box2d3-wasm world, mirrored authoritative entities use `b2BodyType.b2_kinematicBody`; pure presentation bodies (debris, sparks, cloth) use `b2BodyType.b2_dynamicBody`. Collision resolution is one-way: kinematic → dynamic.
 
-Verified API (installed `@dimforge/rapier2d` typings): `RigidBodyDesc.newKinematicPositionBased()`, `body.setNextKinematicTranslation({ x, y })`, `body.setNextKinematicRotation(angleInRadians)`, `body.isKinematic()`.
+Verified API (`box2d3-wasm` v5.2.0): `b2DefaultBodyDef()`, `b2BodyType.b2_kinematicBody`, `b2Body_SetTransform(bodyId, b2Vec2, b2Rot)`, `b2Body_SetLinearVelocity(bodyId, b2Vec2)`, `b2Body_SetType(bodyId, b2BodyType)`.
 
 ```typescript
-function updateRapierKinematicBody(id: number, x: number, y: number, rotation: number): void {
-    const kinematicBody = rapierBodies.get(id);
-    if (kinematicBody && kinematicBody.isKinematic()) {
-        // Force the Rapier body to exactly match the interpolated C# state.
-        kinematicBody.setNextKinematicTranslation({ x, y });
-        kinematicBody.setNextKinematicRotation(rotation);
+function updateBox2D3KinematicBody(id: number, x: number, y: number, rotation: number): void {
+    const kinematicBody = kinematicBodies.get(id);
+    if (kinematicBody) {
+        // Force the box2d3-wasm body to exactly match the interpolated C# state.
+        box2d.b2Body_SetTransform(kinematicBody, new box2d.b2Vec2(x, y), box2d.b2MakeRot(rotation));
     }
 }
 ```
@@ -117,25 +116,25 @@ function updateRapierKinematicBody(id: number, x: number, y: number, rotation: n
 Ticker flow, in order:
 
 1. Compute interpolated `P_render` for each authoritative entity (Section 2).
-2. Push it into its Rapier kinematic body via `setNextKinematicTranslation/Rotation` (Rapier then estimates the body's velocity, so debris receives correct impulses from a moving ship).
-3. `physicsWorld.step()` — the world stays **resident** in JS; never rebuilt, never round-tripped through interop (ADR-002).
-4. Read the resulting `Dynamic` body translations and draw them.
+2. Push it into its box2d3-wasm kinematic body via `b2Body_SetTransform` / `b2Body_SetLinearVelocity` (box2d3-wasm then estimates the body's velocity, so debris receives correct impulses from a moving ship).
+3. `b2World_Step(worldId, dt, subStepCount)` — the world stays **resident** in JS; never rebuilt, never round-tripped through interop (ADR-002).
+4. Read the resulting `b2BodyType.b2_dynamicBody` translations via `b2Body_GetPosition` and draw them.
 
-**Current status (ADR-005):** the asteroids scene runs Rapier debris as `Dynamic` bodies only (`spawnDebris` → `RigidBodyDesc.dynamic()`, zero gravity, restitution 0.6, 1.8 s lifetime, removed and freed on expiry; `physicsWorld.free()` on cleanup). Kinematic mirroring of authoritative entities is **target work**, gated on the per-entity `PresentationPhysicsComponent { Mode }` routing (`Interpolate | Spring | Rapier2D | CustomGpu`). Default remains cheap lerp; pay the Rapier cost only for genuine visual dynamics (cape-ropes, ragdolls, debris).
+**Current status (ADR-005):** the asteroids scene runs box2d3-wasm debris as `b2BodyType.b2_dynamicBody` only (`spawnDebris` → `b2CreateBody` with `b2BodyType.b2_dynamicBody`, zero gravity, restitution 0.6, 1.8 s lifetime, removed via `b2DestroyBody` and world freed via `b2DestroyWorld` on cleanup). Kinematic mirroring of authoritative entities is **target work**, gated on the per-entity `PresentationPhysicsComponent { Mode }` routing (`Interpolate | Spring | box2d3-wasm | CustomGpu`). Default remains cheap lerp; pay the box2d3-wasm cost only for genuine visual dynamics (cape-ropes, ragdolls, debris).
 
 ## 4. Dual-Physics Isolation Matrix
 
-| Parameter | Authoritative Layer (C# / Box2D.NET) | Presentation Layer (TS / PixiJS / Rapier) |
+| Parameter | Authoritative Layer (C# / Box2D.NET) | Presentation Layer (TS / PixiJS / box2d3-wasm) |
 | --- | --- | --- |
 | Execution domain | Server-side static-SSR ASP.NET Core host (`Game.Web`) — **not** Blazor WASM | Browser main thread (Vite IIFE bundle) |
 | Clock / timestep | Fixed `Δt_sim` (60 Hz `EcsSimulation` / game sims) | Variable, V-Sync bounded (`PIXI.Ticker`) |
 | Physics role | Gameplay mechanics, hitboxes, mass, contact events (Asteroids) | Visual debris, particles, secondary motion only |
-| Body mapping | `b2BodyType` Dynamic/Static | `KinematicPositionBased` (mirrors C#) / `Dynamic` (local VFX) |
+| Body mapping | `b2BodyType` Dynamic/Static | `b2_kinematicBody` (mirrors C#) / `b2_dynamicBody` (local VFX) |
 | Collision resolution | Two-way (force ↔ force) | One-way (kinematic → dynamic) |
 | State output | Computes `S_n`, emits one batched signal per interval | Consumes `S_n`, buffers prev/curr, evaluates `(1−α)S_{n−1} + αS_n` |
 | Interpolation | None | LERP translation, shortest-path angular LERP rotation |
 
-Determinism corollary (ADR-002): the authoritative world uses deterministic single-worker Box2D.NET; the Rapier JS build is **not** deterministic and does not need to be — presentation-only.
+Determinism corollary (ADR-002): the authoritative world uses deterministic single-worker Box2D.NET; the box2d3-wasm JS build is **not** deterministic and does not need to be — presentation-only.
 
 ## 5. Future: `HEAPF32` shared memory (ADR-003 target)
 
@@ -148,14 +147,14 @@ When the SSE/JSON bridge evolves to pinned shared-memory transfer (`GCHandle.All
 3. Fixed 16.666 constant replaced with signal-borne `stepMs`/`tickMs`.
 4. "SLERP for rotation" corrected to shortest-path angular LERP (2D).
 5. "Execution Domain: Blazor WebAssembly (AOT)" corrected to the static-SSR server host (no Blazor WASM exists in this repo).
-6. Rapier kinematic coupling marked target work (ADR-005 `PresentationPhysicsComponent`); current Rapier usage is Dynamic debris only. API usage verified against installed typings.
+6. box2d3-wasm kinematic coupling marked target work (ADR-005 `PresentationPhysicsComponent`); current box2d3-wasm usage is `b2BodyType.b2_dynamicBody` debris only. API usage verified against box2d3-wasm typings.
 
 ## 7. Post-rollout fixes (SnapshotBuffer era)
 
 Two defects found after the `SnapshotBuffer` rollout to all scenes:
 
-1. **Epoch-before-seq ordering (restart freeze).** `SnapshotBuffer.ingest` rejected `seq <= lastSeq` *before* checking the epoch. Every sim reset (`SnakeSimulation.Reset`, racer restart, etc.) bumps `_epoch` and zeroes `_seq`, so the new run's first signals (seq 1, 2, … ≤ the dead run's seq) were dropped as stale — the scene froze on the dead board until a page reload. Fix: on epoch change, clear entries and reset `lastSeq = -1` **before** the stale-seq rejection. Scenes additionally reset client-only state on epoch change (asteroids: explosion emitters, Rapier debris, ignition bookkeeping; racer: parallax offsets, `previousPosition`).
-2. **Idle full-redraw per ticker frame (FPS regression).** The rollout moved scenes from "draw once per SSE signal" to "draw every ticker frame". While a sim streams at 60 Hz that is inherent, but on start overlays, game-over screens and paused sims no signals arrive — yet every scene kept clearing and rebuilding its entire `Graphics` at display Hz on identical data. Fix: `SnapshotBuffer.advance(stepMs)` returns the render alpha, or `null` when nothing can have changed (no ingest since the last draw and α already settled at 1). Scenes early-out on `null`; presentation-only systems that genuinely need every frame (asteroids particle emitters, Rapier debris stepping) keep running unconditionally. Known trade-off: pacman's power-pellet pulse (a `performance.now()` sine drawn inside `draw`) freezes while the sim is idle.
+1. **Epoch-before-seq ordering (restart freeze).** `SnapshotBuffer.ingest` rejected `seq <= lastSeq` *before* checking the epoch. Every sim reset (`SnakeSimulation.Reset`, racer restart, etc.) bumps `_epoch` and zeroes `_seq`, so the new run's first signals (seq 1, 2, … ≤ the dead run's seq) were dropped as stale — the scene froze on the dead board until a page reload. Fix: on epoch change, clear entries and reset `lastSeq = -1` **before** the stale-seq rejection. Scenes additionally reset client-only state on epoch change (asteroids: explosion emitters, box2d3-wasm debris, ignition bookkeeping; racer: parallax offsets, `previousPosition`).
+2. **Idle full-redraw per ticker frame (FPS regression).** The rollout moved scenes from "draw once per SSE signal" to "draw every ticker frame". While a sim streams at 60 Hz that is inherent, but on start overlays, game-over screens and paused sims no signals arrive — yet every scene kept clearing and rebuilding its entire `Graphics` at display Hz on identical data. Fix: `SnapshotBuffer.advance(stepMs)` returns the render alpha, or `null` when nothing can have changed (no ingest since the last draw and α already settled at 1). Scenes early-out on `null`; presentation-only systems that genuinely need every frame (asteroids particle emitters, box2d3-wasm debris stepping) keep running unconditionally. Known trade-off: pacman's power-pellet pulse (a `performance.now()` sine drawn inside `draw`) freezes while the sim is idle.
 
 Redraw-gate pattern for every scene:
 

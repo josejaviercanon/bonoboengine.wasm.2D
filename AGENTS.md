@@ -10,7 +10,7 @@
 - `src/Game.Tests.UI` is the Node/TypeScript Playwright E2E suite against the real `Game.Web` host. Not a `.csproj` — run from its folder via npm. Uses installed Chrome (`channel: 'chrome'`); config boots the host on port 5902. See `docs/testing-ui-E2E/index.md`.
 - `src/Game.Maui` is the .NET MAUI Blazor Hybrid host. It targets Android by default, plus iOS, Mac Catalyst, and Windows when supported by the OS/workloads. **Currently commented out of `bonoboWebGame.slnx` (temporary web-only solution build for speed)** — build it directly with `dotnet build src/Game.Maui/Game.Maui.csproj` when doing native app work.
 - `src/Box2D.NET` is a **vendored** C# physics library, **referenced** by `Game.Engine.csproj` and used by `AsteroidsSimulation` as the authoritative physics world (ADR-002). `src/BrainAI` (pathfinding/AI) remains vendored but **unreferenced** — treat as a target dependency, not active. `src/Temp/` holds upstream samples/demos (`Box2D.NET.Samples`, `Box2D.NET.Shared`, `BrainAI.Demo`, `ECS-example`, `AsteroidsWasm` — the reference Asteroids game) plus the source topology doc — not part of the build/solution.
-- The PixiJS v8 ecosystem (`pixi.js`, `@pixi/ui`, `@pixi/sound`, `@pixi/tilemap`, `pixi-viewport`, `pixi-filters`, `@spd789562/particle-emitter`) is declared in `src/Game.UI/package.json`. **Rapier (`@dimforge/rapier2d`) it is optional presentation-physics only (ADR-002).
+- The PixiJS v8 ecosystem (`pixi.js`, `@pixi/ui`, `@pixi/sound`, `@pixi/tilemap`, `pixi-viewport`, `pixi-filters`, `@spd789562/particle-emitter`) is declared in `src/Game.UI/package.json`. **box2d3-wasm (Box2D v3 WASM)** is optional presentation-physics only (ADR-002).
 
 ## Agent References
 
@@ -37,11 +37,11 @@ These rules govern code that crosses the C#↔JS boundary or touches the simulat
 - **Single-player local is the default build (ADR-007).** `SINGLE_PLAYER_LOCAL` is defined by default in `Game.Engine.csproj` (suppressed only by `/p:IsMultiplayer=true` or `/p:IsEcsServerSide=true`), and `npm run build` defaults the Vite `__RENDER_SOURCE__` to `'local-buffer'`. Both sides of the boundary share one flag pair; keep them in sync.
 - **`fetch` POST is multiplayer-only; scenes never call `fetch`.** All commands (input, start, reset, pause, config) route through `SignalStream.postCommand(path, bodyJson?)` in `src/Game.UI/Frontend/scenes/signalSource.ts`. The SSE branch (`npm run build:web`, `--mode web`) is the only place HTTP POST client code exists, and it is dead-code-eliminated from local bundles. The local branch dispatches in-process via `LocalBufferProvider.postCommand` registered by the co-located WASM host — no new input layer/library. (ADR-007)
 - **Snapshots must carry temporal context** (prev+current position, velocity, rotation, tick) so the client can interpolate at display Hz. Current `SpriteState` lacks these — extending toward `TransformSnapshot` is the first bridge task. (ADR-003)
-- **Keep any JS-side physics world (Rapier) resident** in JS/WASM; feed it snapshots at discrete boundaries. Use Rapier only for genuine visual dynamics (capes, ropes, ragdolls, debris); use cheap `lerp`/`slerp`/`spring` for plain interpolation. (ADR-002, ADR-005)
-- **Box2D.NET is the authoritative physics engine** (vendored `src/Box2D.NET`, wired into `Game.Engine` and used by `AsteroidsSimulation`). Rapier is presentation-only, never authoritative. (ADR-002)
+- **Keep any JS-side physics world (box2d3-wasm) resident** in JS/WASM; feed it snapshots at discrete boundaries. Use box2d3-wasm only for genuine visual dynamics (capes, ropes, ragdolls, debris); use cheap `lerp`/`slerp`/`spring` for plain interpolation. (ADR-002, ADR-005)
+- **Box2D.NET is the authoritative physics engine** (vendored `src/Box2D.NET`, wired into `Game.Engine` and used by `AsteroidsSimulation`). box2d3-wasm is presentation-only, never authoritative. (ADR-002)
 - **glTF (`.glb`) is the asset contract, not the ECS architecture.** Don't create one entity per glTF node; use contiguous arrays in `SkeletonComponent`. The animation state machine belongs to the ECS, not glTF. Authoring (AI+Blender) is an offline content pipeline, not part of the game runtime. (ADR-004)
 - **Presentation-side work** (interpolation, camera smoothing, secondary motion, particles, animation blending from velocity) lives in PixiJS; C# only dictates root entity state. (ADR-005, ADR-006)
-- **When adding packages:** the PixiJS ecosystem is already in `src/Game.UI/package.json`; do not duplicate. Rapier is the only planned addition, and only when presentation physics is actually needed.
+- **When adding packages:** the PixiJS ecosystem is already in `src/Game.UI/package.json`; do not duplicate. box2d3-wasm is the only planned addition, and only when presentation physics is actually needed.
 
 ## Commands
 
@@ -94,3 +94,8 @@ MAUI builds require .NET MAUI workloads. Platform-specific target frameworks may
 - `bin/`, `obj/`, `node_modules/`, and other build output are ignored. Do not commit them.
 - Trust `.csproj`, `.slnx`, `package.json`, and executable build output over setup prose in `README.md`.
 - `docs/index.md` describe architecture; `docs/ai-agents/codebase-truth.md` holds verified API facts; record significant decisions in `docs/adr/`.
+
+## Agent Rules
+
+### SHELL_TIMEOUT_600
+* **Enforcement:** Always run any shell command with a timeout of 600 seconds (600000 ms).
