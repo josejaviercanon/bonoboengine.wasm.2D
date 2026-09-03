@@ -8318,9 +8318,10 @@ var Bc = (e, t, n) => {
 			}
 		}), T.addBufferListener("tetris-move", (e) => {
 			try {
+				w.removeWhere((e) => e < 1e3);
 				let t = w.ingestFromBuffer(e, Gc, Wc);
 				if (!t) return;
-				C = Math.max(1, t.stepMs), w.removeWhere((e) => e < 1e3);
+				C = Math.max(1, t.stepMs);
 				let n = e[6], r = e[7], i = e[8], a = Z(e[9]), o = Z(e[10]), s = Z(e[11]), c = e[12];
 				A(n, r, i, a, o), s && Uc("ECS event: piece locked, cleared lines", c);
 			} catch (e) {

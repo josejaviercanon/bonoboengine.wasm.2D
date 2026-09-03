@@ -253,11 +253,12 @@ export const tetrisScene: SceneBuilder = (app, params, ctx) => {
     // Only fires in `--mode wasm` bundles; both listeners coexist without branching.
     stream.addBufferListener('tetris-move', (floats) => {
         try {
+            // Purge falling-piece entries before ingesting new snapshot.
+            interpolation.removeWhere(id => id < 1000);
+
             const header = interpolation.ingestFromBuffer(floats, decodeTetrisSprite, TETRIS_BUFFER_ENTITY_BASE);
             if (!header) return;
             stepMs = Math.max(1, header.stepMs);
-            // Always purge falling-piece entries before ingesting.
-            interpolation.removeWhere(id => id < 1000);
 
             const extras = BUFFER_HEADER_LENGTH;
             const sigScore = floats[extras];
