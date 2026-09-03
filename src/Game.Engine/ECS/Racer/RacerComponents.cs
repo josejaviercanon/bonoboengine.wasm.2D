@@ -12,7 +12,7 @@ public static class RacerConfig
     public const float DefaultRoadWidth = 2000f;
     public const int DefaultLanes = 3;
     public const float DefaultCameraHeight = 1000f;
-    public const int DefaultDrawDistance = 300;
+    public const int DefaultDrawDistance = 120;
     public const float DefaultFieldOfView = 100f;
     public const float DefaultFogDensity = 5f;
     public const float Centrifugal = 0.3f;

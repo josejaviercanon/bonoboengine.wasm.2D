@@ -194,7 +194,7 @@ const DEFAULT_SETTINGS: RacerSettings = {
     lanes: 3,
     roadWidth: 2000,
     cameraHeight: 1000,
-    drawDistance: 300,
+    drawDistance: 120,
     fieldOfView: 100,
     fogDensity: 5,
     resolutionScale: 1,
@@ -254,11 +254,10 @@ function formatTime(value: number): string {
 
 /**
  * Sprite object pool — allocates once, reuses across frames.
- * Eliminates the30,000+ Sprite allocs/sec that caused GC lag.
+ * Eliminates the 30,000+ Sprite allocs/sec that caused GC lag.
  */
 class SpritePool {
     private readonly sprites: Sprite[] = [];
-    private readonly masks: Graphics[] = [];
     private cursor = 0;
     private readonly container: Container;
     private readonly atlas: Texture;
@@ -272,11 +271,8 @@ class SpritePool {
     }
 
     private createEntry(): void {
-        const mask = new Graphics();
-        this.masks.push(mask);
         const sprite = new Sprite(this.atlas);
         sprite.visible = false;
-        sprite.mask = mask;
         this.container.addChild(sprite);
         this.sprites.push(sprite);
     }
@@ -287,11 +283,9 @@ class SpritePool {
         y: number,
         width: number,
         height: number,
-        clipY: number,
     ): void {
         if (this.cursor >= this.sprites.length) this.createEntry();
         const sprite = this.sprites[this.cursor];
-        const mask = this.masks[this.cursor];
         this.cursor++;
 
         sprite.texture = texture;
@@ -302,30 +296,18 @@ class SpritePool {
         sprite.visible = true;
         sprite.alpha = 1;
         sprite.tint = 0xffffff;
-
-        const maskY = Math.min(y, clipY);
-        const maskH = Math.max(0, clipY - maskY);
-        if (maskH > 0 && width > 0) {
-            mask.clear().rect(x, maskY, width, maskH).fill(0xffffff);
-        } else {
-            mask.clear();
-        }
     }
 
     finish(): void {
         for (let i = this.cursor; i < this.sprites.length; i++) {
             this.sprites[i].visible = false;
-            this.sprites[i].mask = null;
-            this.masks[i].clear();
         }
         this.cursor = 0;
     }
 
     destroy(): void {
         for (const sprite of this.sprites) sprite.destroy();
-        for (const mask of this.masks) mask.destroy();
         this.sprites.length = 0;
-        this.masks.length = 0;
     }
 }
 
@@ -359,7 +341,7 @@ function makeSettingsPanel(
         ['lanes', 'Lanes', 1, 4, 1],
         ['roadWidth', 'Road width', 500, 3000, 50],
         ['cameraHeight', 'Camera height', 500, 5000, 50],
-        ['drawDistance', 'Draw distance', 100, 500, 10],
+        ['drawDistance', 'Draw distance', 20, 200, 10],
         ['fieldOfView', 'Field of view', 80, 140, 1],
         ['fogDensity', 'Fog density', 0, 50, 1],
         ['resolutionScale', 'Resolution', 0.4, 1.5, 0.1],
@@ -724,41 +706,92 @@ export const racerScene: SceneBuilder = async (app, params, ctx) => {
         };
     };
 
-    const drawPoly = (points: number[], color: number, alpha = 1): void => {
-        roadGraphics.poly(points).fill({ color, alpha });
+    // --- Road rendering ------------------------------------------------------
+    // The per-segment `poly().fill()` approach emitted ~drawDistance × 6 draw
+    // calls per frame, each tessellating its own geometry — the dominant render
+    // cost. Instead, bucket polygons by fill color and fill each color once.
+    // Segments are vertically non-overlapping thanks to the maxY clip, so
+    // reordering across segments (by color) is visually safe.
+    type RoadPoly = number[];
+
+    const pushRoadPoly = (bucket: Map<number, RoadPoly[]>, color: number, points: RoadPoly): void => {
+        const list = bucket.get(color);
+        if (list) list.push(points);
+        else bucket.set(color, [points]);
     };
 
-    const drawSegment = (projected: ProjectedSegment, width: number): void => {
-        const { p1, p2, segment, fog } = projected;
-        const palette = COLORS[segment.color] ?? COLORS[SEGMENT_LIGHT];
-        const rumble1 = p1.w / Math.max(6, 2 * settings.lanes);
-        const rumble2 = p2.w / Math.max(6, 2 * settings.lanes);
-        const lane1 = p1.w / Math.max(32, 8 * settings.lanes);
-        const lane2 = p2.w / Math.max(32, 8 * settings.lanes);
+    const drawRoadBucket = (bucket: Map<number, RoadPoly[]>): void => {
+        for (const [color, polys] of bucket) {
+            for (const points of polys) {
+                roadGraphics.moveTo(points[0], points[1]);
+                for (let i = 2; i + 1 < points.length; i += 2) {
+                    roadGraphics.lineTo(points[i], points[i + 1]);
+                }
+                roadGraphics.closePath();
+            }
+            roadGraphics.fill(color);
+        }
+    };
 
-        roadGraphics.rect(0, p2.y, width, Math.max(0, p1.y - p2.y)).fill(palette.grass);
-        drawPoly([p1.x - p1.w - rumble1, p1.y, p1.x - p1.w, p1.y, p2.x - p2.w, p2.y, p2.x - p2.w - rumble2, p2.y], palette.rumble);
-        drawPoly([p1.x + p1.w + rumble1, p1.y, p1.x + p1.w, p1.y, p2.x + p2.w, p2.y, p2.x + p2.w + rumble2, p2.y], palette.rumble);
-        drawPoly([p1.x - p1.w, p1.y, p1.x + p1.w, p1.y, p2.x + p2.w, p2.y, p2.x - p2.w, p2.y], palette.road);
+    const drawRoad = (ordered: ProjectedSegment[], width: number): void => {
+        const grass = new Map<number, RoadPoly[]>();
+        const rumble = new Map<number, RoadPoly[]>();
+        const road = new Map<number, RoadPoly[]>();
+        const lane = new Map<number, RoadPoly[]>();
 
-        if (palette.lane !== null) {
-            const laneWidth1 = p1.w * 2 / settings.lanes;
-            const laneWidth2 = p2.w * 2 / settings.lanes;
-            let laneX1 = p1.x - p1.w + laneWidth1;
-            let laneX2 = p2.x - p2.w + laneWidth2;
-            for (let lane = 1; lane < settings.lanes; lane++) {
-                drawPoly([
-                    laneX1 - lane1 / 2, p1.y, laneX1 + lane1 / 2, p1.y,
-                    laneX2 + lane2 / 2, p2.y, laneX2 - lane2 / 2, p2.y,
-                ], palette.lane);
-                laneX1 += laneWidth1;
-                laneX2 += laneWidth2;
+        for (const projected of ordered) {
+            const { p1, p2, segment } = projected;
+            const palette = COLORS[segment.color] ?? COLORS[SEGMENT_LIGHT];
+            const rumble1 = p1.w / Math.max(6, 2 * settings.lanes);
+            const rumble2 = p2.w / Math.max(6, 2 * settings.lanes);
+            const lane1 = p1.w / Math.max(32, 8 * settings.lanes);
+            const lane2 = p2.w / Math.max(32, 8 * settings.lanes);
+
+            const grassH = Math.max(0, p1.y - p2.y);
+            if (grassH > 0) {
+                pushRoadPoly(grass, palette.grass, [0, p2.y, width, p2.y, width, p1.y, 0, p1.y]);
+            }
+            pushRoadPoly(rumble, palette.rumble, [p1.x - p1.w - rumble1, p1.y, p1.x - p1.w, p1.y, p2.x - p2.w, p2.y, p2.x - p2.w - rumble2, p2.y]);
+            pushRoadPoly(rumble, palette.rumble, [p1.x + p1.w + rumble1, p1.y, p1.x + p1.w, p1.y, p2.x + p2.w, p2.y, p2.x + p2.w + rumble2, p2.y]);
+            pushRoadPoly(road, palette.road, [p1.x - p1.w, p1.y, p1.x + p1.w, p1.y, p2.x + p2.w, p2.y, p2.x - p2.w, p2.y]);
+
+            if (palette.lane !== null) {
+                const laneWidth1 = p1.w * 2 / settings.lanes;
+                const laneWidth2 = p2.w * 2 / settings.lanes;
+                let laneX1 = p1.x - p1.w + laneWidth1;
+                let laneX2 = p2.x - p2.w + laneWidth2;
+                for (let l = 1; l < settings.lanes; l++) {
+                    pushRoadPoly(lane, palette.lane, [
+                        laneX1 - lane1 / 2, p1.y, laneX1 + lane1 / 2, p1.y,
+                        laneX2 + lane2 / 2, p2.y, laneX2 - lane2 / 2, p2.y,
+                    ]);
+                    laneX1 += laneWidth1;
+                    laneX2 += laneWidth2;
+                }
             }
         }
 
-        if (fog < 1) {
-            roadGraphics.rect(0, p2.y, width, Math.max(0, p1.y - p2.y))
-                .fill({ color: 0x005108, alpha: 1 - fog });
+        drawRoadBucket(grass);
+        drawRoadBucket(rumble);
+        drawRoadBucket(road);
+        drawRoadBucket(lane);
+
+        // Fog: quantize per-segment alpha into coarse levels so the distance
+        // fade survives but collapses to a handful of draws instead of one per
+        // segment.
+        const fogBuckets = new Map<number, RoadPoly[]>();
+        for (const projected of ordered) {
+            const { p1, p2, fog } = projected;
+            if (fog >= 1) continue;
+            const level = Math.round((1 - fog) * 24);
+            if (level <= 0) continue;
+            const grassH = Math.max(0, p1.y - p2.y);
+            if (grassH <= 0) continue;
+            pushRoadPoly(fogBuckets, level, [0, p2.y, width, p2.y, width, p1.y, 0, p1.y]);
+        }
+        for (const [level, polys] of fogBuckets) {
+            for (const points of polys) roadGraphics.poly(points);
+            roadGraphics.fill({ color: 0x005108, alpha: level / 24 });
         }
     };
 
@@ -779,10 +812,12 @@ export const racerScene: SceneBuilder = async (app, params, ctx) => {
         const spriteHeight = rect.h * scale * width / 2 * (SPRITE_SCALE * settings.roadWidth);
         const left = x + spriteWidth * offsetX;
         const top = y - spriteHeight;
+        // Cull sprites outside horizontal viewport (FOV culling)
+        if (left + spriteWidth < 0 || left > width) return;
         const visibleHeight = Math.min(spriteHeight, Math.max(0, clipY - top));
         if (visibleHeight <= 0 || spriteWidth <= 0) return;
 
-        pool.acquire(texture, left, top, spriteWidth, visibleHeight, clipY);
+        pool.acquire(texture, left, top, spriteWidth, visibleHeight);
     };
 
     // --- Sprite pools (pre-allocated, reused across frames) -------------------
@@ -911,6 +946,7 @@ export const racerScene: SceneBuilder = async (app, params, ctx) => {
         backgroundLayers[1].tilePosition.set(-hillOffset * 1280, height * 0.002 * playerY);
         backgroundLayers[2].tilePosition.set(-treeOffset * 1280, height * 0.003 * playerY);
 
+        const orderedSegments: ProjectedSegment[] = [];
         for (let n = 0; n < settings.drawDistance; n++) {
             const segment = segments[(normalizedBaseIndex + n) % segments.length];
             if (!segment) continue;
@@ -925,11 +961,12 @@ export const racerScene: SceneBuilder = async (app, params, ctx) => {
 
             const projected: ProjectedSegment = { segment, p1, p2, fog, clip: maxY };
             if (p1.cameraZ <= cameraDepth || p2.y >= p1.y || p2.y >= maxY) continue;
-            drawSegment(projected, width);
             maxY = p1.y;
             projected.clip = maxY;
             projectedSegments.set(segment.index, projected);
+            orderedSegments.push(projected);
         }
+        drawRoad(orderedSegments, width);
 
         const carsBySegment = new Map<number, RacerCarState[]>();
         for (const car of renderedCars) {
@@ -983,11 +1020,17 @@ export const racerScene: SceneBuilder = async (app, params, ctx) => {
         }
 
         // HUD update (4 fields, matching original game.html)
+        // Text re-renders its canvas + re-uploads to the GPU on every change,
+        // so only touch a field when its string actually differs.
         const mph = Math.round(5 * Math.round(renderedPlayer.speed / 500));
-        hudSpeed.text = `${mph} mph`;
-        hudTime.text = `Time: ${formatTime(renderedPlayer.currentLapTime)}`;
-        hudLast.text = renderedPlayer.lastLapTime > 0 ? `Last: ${formatTime(renderedPlayer.lastLapTime)}` : '';
-        hudFast.text = `Fastest: ${formatTime(renderedPlayer.fastLapTime)}`;
+        const nextSpeed = `${mph} mph`;
+        if (hudSpeed.text !== nextSpeed) hudSpeed.text = nextSpeed;
+        const nextTime = `Time: ${formatTime(renderedPlayer.currentLapTime)}`;
+        if (hudTime.text !== nextTime) hudTime.text = nextTime;
+        const nextLast = renderedPlayer.lastLapTime > 0 ? `Last: ${formatTime(renderedPlayer.lastLapTime)}` : '';
+        if (hudLast.text !== nextLast) hudLast.text = nextLast;
+        const nextFast = `Fastest: ${formatTime(renderedPlayer.fastLapTime)}`;
+        if (hudFast.text !== nextFast) hudFast.text = nextFast;
         const barY = cachedLogicalHeight * settings.resolutionScale - 32;
         hudSpeed.position.set(cachedLogicalWidth * settings.resolutionScale - 100, barY);
         hudTime.position.set(16, barY);
@@ -999,7 +1042,8 @@ export const racerScene: SceneBuilder = async (app, params, ctx) => {
         hudFast.visible = true;
         // Gold flash on fastest lap (matches original .fastest CSS)
         const isFastest = renderedPlayer.lastLapTime > 0 && renderedPlayer.lastLapTime <= renderedPlayer.fastLapTime;
-        hudFast.style.fill = isFastest ? 0xffd700 : 0x000000;
+        const nextFill = isFastest ? 0xffd700 : 0x000000;
+        if (hudFast.style.fill !== nextFill) hudFast.style.fill = nextFill;
         const viewport = document.getElementById('pixi-viewport');
         viewport?.setAttribute('data-racer-bounds', `${Math.round(width)}x${Math.round(height)}`);
     };

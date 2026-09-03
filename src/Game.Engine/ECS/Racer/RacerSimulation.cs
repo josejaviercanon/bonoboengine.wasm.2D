@@ -148,7 +148,7 @@ public sealed class RacerSimulation : IDisposable
                 Math.Clamp(request.Lanes, 1, 4),
                 ClampFinite(request.RoadWidth, 500f, 3000f, RacerConfig.DefaultRoadWidth),
                 ClampFinite(request.CameraHeight, 500f, 5000f, RacerConfig.DefaultCameraHeight),
-                Math.Clamp(request.DrawDistance, 100, 500),
+                Math.Clamp(request.DrawDistance, 20, 200),
                 ClampFinite(request.FieldOfView, 80f, 140f, RacerConfig.DefaultFieldOfView),
                 ClampFinite(request.FogDensity, 0f, 50f, RacerConfig.DefaultFogDensity),
                 ClampFinite(request.ResolutionScale, 0.4f, 1.5f, 1f));

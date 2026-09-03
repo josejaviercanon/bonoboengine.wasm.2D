@@ -225,4 +225,4 @@ MAUI builds require .NET MAUI workloads. Platform-specific target frameworks may
 ## Agent Rules
 
 ### SHELL_TIMEOUT_600
-***Enforcement:** Always run any shell command with a timeout of 600 seconds (600000 ms).
+***Enforcement:** Always run any shell command with a timeout of 300 seconds (300000 ms).
