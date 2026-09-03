@@ -2,10 +2,12 @@ using System.Diagnostics;
 using Arch.Core;
 using Arch.Systems;
 using Game.Engine.ECS.Systems;
+using Game.Engine.Interop;
 
 namespace Game.Engine.ECS;
 
 /// <summary>Plain-data snapshot of one entity, serializable for the SSR payload and SSE stream.</summary>
+[TypeScriptExport(6)]
 public record struct SpriteState(int Id, float X, float Y, byte R, byte G, byte B);
 
 /// <summary>Batched render signal emitted at most once per <see cref="EcsSimulation.SignalIntervalSeconds"/>.</summary>

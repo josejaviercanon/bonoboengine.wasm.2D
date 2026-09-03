@@ -1,6 +1,6 @@
 # Architecture Topology — C# ECS Engine in .NET MAUI Hybrid / Blazor WebAssembly
 
-> Detailed companion to `docs/index.md` (the architecture source of truth). Decisions live in `docs/adr/` (ADR-001 … ADR-007); verified facts in `docs/ai-agents/codebase-truth.md`. This file marks **Implemented** vs **Target** explicitly. When code and prose disagree, verified files win.
+> Detailed companion to `docs/index.md` (the architecture source of truth). Decisions live in `docs/adr/`; verified facts in `docs/ai-agents/codebase-truth.md`. This file marks **Implemented** vs **Target** explicitly. When code and prose disagree, verified files win.
 
 ## The Dual-Runtime State Machine
 
@@ -109,7 +109,7 @@ Animation state machine belongs to the ECS, not glTF. See `docs/2d-skeletal-anim
 | `pixi-viewport` | JS | C# camera entity | shared buffer (target) | C# `CameraSystem` focus -> JS affine transform |
 | `CullerPlugin` | JS | viewport bbox | zero (internal JS) | skips offscreen draw calls |
 | `pixi-filters` | JS / GPU shader | C# render settings | low-freq mutation | post-processing (Bloom, CRT, Shockwave) |
-| Blazor Razor HUD | C# / DOM overlay | C# reactive state | native data binding | HTML5 HUD over canvas; crisp, accessible |
+| HTML5 HUD | JS / DOM overlay | reactive state | native data binding | HTML5 HUD over canvas; crisp, accessible |
 | `@pixi/ui` | JS (canvas) | world-space containers | shared / event | world-space UI (enemy health bars, click targets) |
 
 ## Ecosystem Packages

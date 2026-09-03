@@ -1,4 +1,5 @@
 using Arch.AOT.SourceGenerator;
+using Game.Engine.Interop;
 
 namespace Game.Engine.ECS.Racer;
 
@@ -328,6 +329,7 @@ public readonly record struct RacerSegmentState(
 public readonly record struct RacerSceneryState(
     int SegmentIndex, float Offset, byte SpriteKind);
 
+[TypeScriptExport(6)]
 public readonly record struct RacerCarState(
     int Id, float Z, float Offset, float Speed, float Percent, byte SpriteKind);
 

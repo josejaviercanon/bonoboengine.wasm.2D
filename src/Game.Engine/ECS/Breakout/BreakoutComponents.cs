@@ -1,4 +1,5 @@
 using Arch.AOT.SourceGenerator;
+using Game.Engine.Interop;
 
 namespace Game.Engine.ECS.Breakout;
 
@@ -118,6 +119,7 @@ public struct BreakoutStats
 ///     bricks, the wide paddle and the circular ball without per-sprite interop.
 ///     X/Y are the sprite center.
 /// </summary>
+[TypeScriptExport(8)]
 public record struct BreakoutSpriteState(
     int Id, float X, float Y, float Width, float Height, byte R, byte G, byte B);
 

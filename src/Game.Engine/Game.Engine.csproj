@@ -16,6 +16,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Arch\Arch.csproj" />
     <ProjectReference Include="..\Arch.Generators\Arch.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\Game.Engine.Generators\Game.Engine.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\Box2D.NET\Box2D.NET.csproj" />
   </ItemGroup>
 

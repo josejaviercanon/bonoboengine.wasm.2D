@@ -27,7 +27,11 @@ export interface BufferHeader {
     tickMs: number;
 }
 
-export const BUFFER_HEADER_LENGTH = 6;
+// Single source of truth for the header length: generated from the C# side by
+// Game.Engine.Generators (see scenes/generated/signalLayout.ts). Keeps the C#
+// SignalBuffer.HeaderLength and the TS constant from drifting.
+import { BUFFER_HEADER_LENGTH } from './generated/signalLayout';
+export { BUFFER_HEADER_LENGTH };
 
 /** Reads the standard header from a raw signal buffer. */
 export function readSignalHeader(floats: Float32Array): BufferHeader {

@@ -2,10 +2,12 @@ using System.Diagnostics;
 using Arch.Core;
 using Arch.Systems;
 using Game.Engine.ECS;
+using Game.Engine.Interop;
 
 namespace Game.Engine.ECS.Pacman;
 
 /// <summary>Pacman sprite state crossing the batched C# to PixiJS bridge.</summary>
+[TypeScriptExport(16)]
 public readonly record struct PacmanSpriteState(
     int Id,
     float X,

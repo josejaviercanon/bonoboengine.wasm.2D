@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Packages the zero-copy interop guardrails (ADR-007/008) as a self-contained
+    Roslyn analyzer + source generator assembly:
+
+      * LayoutAlignmentAnalyzer (BNOBO001/BNOBO002) — compile-time (IDE red
+        squiggle) validation that every [TypeScriptExport] struct can be encoded
+        into the shared-memory float32 buffer and that its declared stride matches
+        the computed float width of its fields.
+
+      * TypeScriptInterfaceGenerator — emits (a) `GeneratedSignalLayout` + a
+        `[ModuleInitializer]` fail-fast that asserts generated strides equal
+        Game.Engine.ECS.SignalBufferLayout at WASM boot, and (b) the matching
+        TypeScript interfaces + stride constants into Game.UI's frontend tree.
+
+    Mirrors the Arch.Generators pattern: netstandard2.0 + Roslyn only, so the
+    analyzer load context can always resolve the assembly (no runtime deps).
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsRoslynComponent>true</IsRoslynComponent>
+    <!--
+      File IO (writing the generated signalLayout.ts into Game.UI) is intentional
+      here, so the extended-analyzer-rules ban on IO is not enforced. The RSxxxx
+      rules this surfaces are silenced explicitly.
+    -->
+    <NoWarn>$(NoWarn);RS1032;RS1035;RS1036;RS2008</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.6.0">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+
+</Project>

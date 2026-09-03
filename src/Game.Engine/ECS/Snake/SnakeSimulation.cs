@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Arch.Core;
 using Arch.Systems;
 using Game.Engine.ECS.Systems;
+using Game.Engine.Interop;
 
 namespace Game.Engine.ECS.Snake;
 
@@ -12,6 +13,7 @@ namespace Game.Engine.ECS.Snake;
 ///     ECS-originated edge events consumed once: the client reacts (eat sound,
 ///     food-spawn sound, start of the deadly-food fall).
 /// </summary>
+[TypeScriptExport(11)]
 public readonly record struct SnakeSpriteState(
     int Id,
     float X,

@@ -1,5 +1,6 @@
 using Arch.AOT.SourceGenerator;
 using Box2D.NET;
+using Game.Engine.Interop;
 
 namespace Game.Engine.ECS.Asteroids;
 
@@ -318,6 +319,7 @@ public struct AsteroidsStats
 ///     the client can interpolate at display Hz. <c>Size</c> is the asteroid radius in
 ///     px (explosions: age in seconds).
 /// </summary>
+[TypeScriptExport(11)]
 public record struct AsteroidsSpriteState(
     int Id, float X, float Y, float Rotation, float VX, float VY, byte Kind, float Size, byte R, byte G, byte B);
 

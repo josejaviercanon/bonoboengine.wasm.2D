@@ -68,7 +68,7 @@ public static class SignalBufferLayout
     // breakout extras: score, lives, level, gameOver, started, brickHit,
     // paddleHit, levelUp, loseLife.
     public const int BreakoutExtras = 9;
-    public const int BreakoutStride = 7;
+    public const int BreakoutStride = 8;
 
     // asteroids extras: score, highScore, lives, level, gameOver, started,
     // thrustOn, exploded, fired, saucerSpawned, levelUp, lifeGained.
