@@ -34,4 +34,5 @@ Architecture decisions for the Bonobo Engine are recorded here as ADRs, one file
 ## Records
 
 - [`ADR-008: Zero-Copy Shared Memory Interop Pipeline`](ADR-008.md)
+- [`ADR-009: Strip Blazor Components for browser-wasm Native-AOT Host`](ADR-009.md)
 

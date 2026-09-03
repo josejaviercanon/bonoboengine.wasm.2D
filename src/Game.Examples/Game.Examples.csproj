@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Razor">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -7,16 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <SupportedPlatform Include="browser" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.10" />
-  </ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="..\Game.Engine\Game.Engine.csproj" />
-    <ProjectReference Include="..\Game.UI\Game.UI.csproj" />
   </ItemGroup>
 
 </Project>

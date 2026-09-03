@@ -55,7 +55,7 @@ const PADDLE_SOUND_ALIAS = 'breakout-paddle';
 const LEVELUP_SOUND_ALIAS = 'breakout-levelup';
 const LOSELIFE_SOUND_ALIAS = 'breakout-loselife';
 const GAMEOVER_SOUND_ALIAS = 'breakout-gameover';
-const SOUND_BASE_URL = '_content/Game.UI/audio/';
+const SOUND_BASE_URL = './audio/';
 
 const soundRegistered = new Set<string>();
 

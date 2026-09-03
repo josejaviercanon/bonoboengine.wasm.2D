@@ -9,11 +9,11 @@
 ## Project Context
 
 * **Language:** C# 14 / .NET
-* **Framework:** .NET MAUI / Blazor WebAssembly Hybrid
+* **Framework:** .NET MAUI / WASM Native AOT
 * **ECS Backend:** Arch ECS (Pure C# zero-allocation component architecture)
 * **Physics Backend:** `Box2D.NET` (Authoritative simulation loop) & `box2d3-wasm` (Optional presentation and debris physics)
 * **Render Frontend:** PixiJS v8 (2D WebGL/WebGPU Canvas renderer via batched transform buffers)
-* **UI Overlay:** Razor Class Library (RCL) + Tailwind CSS + Vite
+* **UI Overlay:** Tailwind CSS + Vite + TypeScript
 * **Target Environment:** Native AOT / WebAssembly (WASM)
 
 ---
@@ -122,7 +122,7 @@ public static void MainLoopTick(float deltaTime)
 | --- | --- | --- | --- |
 | **Simulation & Physics** | C# (Arch ECS / Box2D.NET / .NET WASM) | Game rules, entity states, 2D rigid body collisions and dynamics. | Locked to target tick rate (e.g., 60 Hz fixed timestep). |
 | **Graphics Pipeline** | TypeScript (PixiJS v8 / WebGL / WebGPU) | Sprite rendering, container hierarchies, camera panning, particle effects. | Frame-synchronized with browser `requestAnimationFrame`. |
-| **Complex UI Layer** | Razor / Tailwind CSS / Vite / TypeScript | Menus, HUDs, inventory grids, configuration panels. | Event-driven (DOM-rendered on demand). |
+| **Complex UI Layer** | Tailwind CSS / Vite / TypeScript | Menus, HUDs, inventory grids, configuration panels. | Event-driven (DOM-rendered on demand). |
 | **Shared Memory Bridge** | Pinned `GCHandle` & `Float32Array` view | Zero-copy 2D transform and coordinate synchronization. | Direct memory read per render frame. |
 
 ---
@@ -131,10 +131,10 @@ public static void MainLoopTick(float deltaTime)
 
 - `bonoboWebGame.slnx` is the solution; projects target .NET 10.
 - `src/Game.Engine` is a plain C# class library. Keep engine logic independent of UI and platform code. It hosts the Arch ECS (`Game.Engine.ECS`: components, `[Query]` systems, `EcsSimulation`) via vendored `src/Arch` + `src/Arch.Generators` (analyzer only).
-- `src/Game.UI` is the shared Razor Class Library. It references `Game.Engine` and owns shared Razor components plus PixiJS assets.
+- `src/Game.UI` is a shared class library (non-Razor, plain `Microsoft.NET.Sdk`). It references `Game.Engine` and owns the PixiJS frontend source (Vite + Tailwind + TypeScript) and static assets (audio, backgrounds). Built via `npm run build` in its folder.
 - `src/Game.Tests` is the xUnit v3 test project (determinism self-checks, ECS unit tests, snapshot shape). `src/Game.Tests.Aot` is the TUnit test project (AOT/trim pattern checks over the `Game.Engine` closure). Both are in the solution and run under the Microsoft.Testing.Platform runner opted in via root `global.json` — do not delete that file or `dotnet test` misbehaves on .NET 10.
 - `src/Game.Tests.UI` is the Node/TypeScript Playwright E2E suite. Not a `.csproj` — run from its folder via npm. Uses installed Chrome (`channel: 'chrome'`). Config and host setup: see `docs/testing-ui-E2E/index.md`.
-- `src/Game.Wasm` is the Blazor WebAssembly host (co-located single-player, ADR-007 Phase 3 zero-copy). Hosts simulations lazily per visited scene. Implements the `[JSImport]`/`[JSExport]` interop bridge with pinned shared memory buffer (`PinnedRenderBuffer`), typed command exports via `WasmInterop`, and the PixiJS provider (wasm-interop.js module).
+- `src/Game.Wasm` is the browser-wasm host (non-Blazor, `Microsoft.NET.Sdk.WebAssembly`). Hosts simulations lazily per visited scene. Implements the `[JSImport]`/`[JSExport]` interop bridge with pinned shared memory buffer (`PinnedRenderBuffer`), typed command exports via `WasmInterop`, and the PixiJS provider (wasm-interop.js module). Bootstraps via direct `import { dotnet } from './_framework/dotnet.js'` (no `blazor.webassembly.js`).
 - `src/Game.Examples` is the example catalog (`ExamplesCatalog.cs`) and `IExampleSims` seam. Referenced by `Game.Wasm`.
 
 - `src/Box2D.NET` is a **vendored** C# physics library, **referenced** by `Game.Engine.csproj` as the authoritative physics world (ADR-002). `src/BrainAI` (pathfinding/AI) remains vendored but **unreferenced** — treat as a target dependency, not active. `src/Temp/` holds upstream samples/demos — not part of the build/solution.
@@ -211,7 +211,7 @@ MAUI builds require .NET MAUI workloads. Platform-specific target frameworks may
 ## Verification Notes
 
 - Test projects: `Game.Tests` (xUnit v3), `Game.Tests.Aot` (TUnit), `Game.Tests.UI` (Playwright, Node-only, not in the solution). Full guide: `docs/testing-ui-E2E/index.md`. `Game.Maui` is temporarily commented out of the solution (web-only builds for speed).
-- After touching `Game.UI` RCL assets, kill any running `Game.Wasm.exe` before rebuilding. Static-asset 500s (`_content/Game.UI/dist/*`) = stale/raced `bin`/`obj` static-web-asset output; fix by killing the host and rebuilding (delete `src/Game.Wasm/bin`+`obj` if it persists).
+- After touching `Game.UI` frontend assets, kill any running `Game.Wasm.exe` before rebuilding. 500s on `dist/*` (`game-bundle.js`, `app.css`) = stale/raced output from the `CopyGameUIAssets` MSBuild target; fix by killing the host and rebuilding (delete `src/Game.Wasm/bin`+`obj` if it persists).
 - `bin/`, `obj/`, `node_modules/`, and other build output are ignored. Do not commit them.
 - Trust `.csproj`, `.slnx`, `package.json`, and executable build output over setup prose in `README.md`.
 - `docs/index.md` describe architecture; `docs/ai-agents/codebase-truth.md` holds verified API facts; record significant decisions in `docs/adr/`.

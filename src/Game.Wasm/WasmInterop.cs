@@ -128,4 +128,16 @@ public static partial class WasmInterop
         if (game == "racer")
             _sims?.Racer.Resume();
     }
+
+    [JSExport]
+    internal static string ListExamples()
+    {
+        return Game.Examples.ExamplePayloadBuilder.ListExamples();
+    }
+
+    [JSExport]
+    internal static string GetExamplePayload(string exampleId)
+    {
+        return Game.Examples.ExamplePayloadBuilder.Build(exampleId, _sims);
+    }
 }

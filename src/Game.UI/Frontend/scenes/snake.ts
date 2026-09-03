@@ -101,9 +101,9 @@ const KEY_TO_DIRECTION: Record<string, string> = {
 const EAT_SOUND_ALIAS = 'snake-eat';
 const SPAWN_SOUND_ALIAS = 'snake-spawn';
 const ENDGAME_SOUND_ALIAS = 'snake-endgame';
-const EAT_SOUND_URL = '_content/Game.UI/audio/snake-eat.mp3';
-const SPAWN_SOUND_URL = '_content/Game.UI/audio/snake-spawn.mp3';
-const ENDGAME_SOUND_URL = '_content/Game.UI/audio/snake-endgame.mp3';
+const EAT_SOUND_URL = './audio/snake-eat.mp3';
+const SPAWN_SOUND_URL = './audio/snake-spawn.mp3';
+const ENDGAME_SOUND_URL = './audio/snake-endgame.mp3';
 
 const soundRegistered = new Set<string>();
 

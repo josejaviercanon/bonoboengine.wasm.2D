@@ -212,7 +212,7 @@ const HILL_SPEED = 0.002;
 const TREE_SPEED = 0.003;
 const SPRITE_SCALE = 0.3 / 80;
 const SOUND_ALIAS = 'racer-music';
-const SOUND_URL = '_content/Game.UI/games/racer/racer.mp3';
+const SOUND_URL = './games/racer/racer.mp3';
 
 const dbg = (...args: unknown[]) => console.log('[pixi-debug] racer:', ...args);
 
@@ -456,8 +456,8 @@ export const racerScene: SceneBuilder = async (app, params) => {
     app.renderer.background.color = '#72d7ee';
 
     const [atlas, background] = await Promise.all([
-        Assets.load('_content/Game.UI/games/racer/sprites.png') as Promise<Texture>,
-        Assets.load('_content/Game.UI/games/racer/background.png') as Promise<Texture>,
+        Assets.load('./games/racer/sprites.png') as Promise<Texture>,
+        Assets.load('./games/racer/background.png') as Promise<Texture>,
     ]);
 
     const world = new Container();

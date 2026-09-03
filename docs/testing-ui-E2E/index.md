@@ -8,7 +8,7 @@ Three test projects cover the simulation/presentation split. All commands verifi
 |---|---|---|---|
 | `src/Game.Tests` | C#, **xUnit v3** (MTP runner) | Determinism self-checks, ECS simulation unit tests, snapshot shape | `dotnet test src/Game.Tests` |
 | `src/Game.Tests.Aot` | C#, **TUnit** (MTP runner) | AOT/trim pattern checks over the `Game.Engine` closure (no ReflectionEmit, no runtime package refs, DependencyContext behavior) | `dotnet test src/Game.Tests.Aot` |
-| `src/Game.Tests.UI` | **Node/TypeScript, Playwright** | E2E against the real `Game.Web` host (static SSR shell, `data-message` payload, PixiJS bootstrap, asset serving) | `cd src/Game.Tests.UI && npx playwright test` |
+| `src/Game.Tests.UI` | **Node/TypeScript, Playwright** | E2E against the real `Game.Wasm` host (static shell, WASM boot, PixiJS bootstrap, asset serving) | `cd src/Game.Tests.UI && npx playwright test` |
 
 `Game.Tests` and `Game.Tests.Aot` are in `bonoboWebGame.slnx`; `Game.Tests.UI` is a Node project (no `.csproj`) and runs via npm.
 
@@ -22,11 +22,11 @@ Three test projects cover the simulation/presentation split. All commands verifi
 ## Playwright (Game.Tests.UI) — rules and caveats
 
 - **Chrome channel only**: config uses `channel: 'chrome'` (installed Chrome, no bundled browser download). For manual agent driving use `playwright-cli open --browser=chrome`.
-- Config (`playwright.config.ts`): port **5902**, `webServer` boots `dotnet run --project ../../src/Game.Web` (Development env, HTTPS redirect suppressed). Set `GAME_WEB_EXTERNAL_URL` to reuse an already-running host.
+- Config (`playwright.config.ts`): port **5902**, `webServer` boots `dotnet run --project ../../src/Game.Wasm` with `ASPNETCORE_URLS` env var. Set `GAME_WEB_EXTERNAL_URL` to reuse an already-running host.
 - `workers: 1`, `fullyParallel: false` — the host holds singleton simulations.
 - npm scripts: `test`, `test:headed`, `test:ui`, `report`, `typecheck`. Run `npm run typecheck` after spec edits.
-- **Static-asset 500s after touching `Game.UI` RCL assets**: `_content/Game.UI/dist/*` (game-bundle.js, app.css) returning 500 means stale/partially-copied `bin`/`obj` static-web-asset output — usually from a build racing a server process. Kill all `Game.Web.exe` (`taskkill //F //IM Game.Web.exe`), then rebuild. If 500s persist: delete `src/Game.Web/bin` + `src/Game.Web/obj` (+ `src/Game.UI/obj` compressed cache) and rebuild. Never build while a host is running (static-web-asset compression race).
-- **Bootstrap timing is a product contract**: `game-bundle.js` is an ES module with dynamic imports; its execution can finish *after* the window `load` event. The inline script in `Game.Web/Components/App.razor` polls up to 15 s for `window.initGame`. Tests assert canvas visibility with a 20 s timeout — do not shrink these without understanding cold-load module fetches.
+- **Static-asset 500s after touching `Game.UI` assets**: `dist/*` (game-bundle.js, app.css) returning 500 means the `CopyGameUIAssets` MSBuild target didn't copy them to `Game.Wasm/wwwroot`. Kill all `Game.Wasm.exe` (`taskkill //F //IM Game.Wasm.exe`), delete `src/Game.Wasm/bin` + `src/Game.Wasm/obj`, then rebuild. Never build while a host is running.
+- **Bootstrap timing**: `game-bundle.js` is an ES module with dynamic imports; its execution can finish *after* the window `load` event. The WASM boot (`main.mjs` → `dotnet.js` → runtime) also takes time. Tests assert canvas visibility with a 60 s timeout — do not shrink these without understanding cold-load module fetches.
 - `/hello` `data-message` payload is plain text, not JSON. Home heading text is `PixiJS Examples` (there is no `<title>`).
 
 ## Standalone Screenshot Scripts (ESM Context)
@@ -58,7 +58,7 @@ if (process.platform === 'win32') {
 
 ### Path Resolution
 
-Do NOT specify both `cwd` and `--project` with relative paths simultaneously — `dotnet` resolves `--project` relative to `cwd`, doubling the traversal and breaking project resolution. Use `spawn('dotnet', ['run', '--project', '../../src/Game.Web'])` from the repo root without overriding `cwd`.
+Do NOT specify both `cwd` and `--project` with relative paths simultaneously — `dotnet` resolves `--project` relative to `cwd`, doubling the traversal and breaking project resolution. Use `spawn('dotnet', ['run', '--project', '../../src/Game.Wasm'])` from the repo root without overriding `cwd`.
 
 ### Dynamic Readiness Polling — Replace Static Sleep
 
@@ -66,7 +66,7 @@ Use HTTP readiness polling (`http.get` loop) instead of `await wait(20000)` or `
 
 ### Corrected Standalone Screenshot Command
 
-Run from the repo root (`x:/PROJECTS/BonoboEngine/Repos/bonoboengine.blazorwasm`):
+Run from the repo root (`x:/PROJECTS/BonoboEngine/Repos/bonoboengine.wasm.2D`):
 
 ```powershell
 $screenshot = @'
@@ -87,7 +87,7 @@ const pollServer = (url, timeoutMs = 30000) => {
   });
 };
 (async () => {
-  const host = spawn('dotnet', ['run', '--project', '../../src/Game.Web']);
+  const host = spawn('dotnet', ['run', '--project', '../../src/Game.Wasm']);
   try {
     await pollServer('http://localhost:5902');
     const browser = await chromium.launch({ channel: 'chrome' });
@@ -95,7 +95,7 @@ const pollServer = (url, timeoutMs = 30000) => {
     const errors = [];
     page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
     page.on('pageerror', e => errors.push(String(e)));
-    await page.goto('http://localhost:5902/examples/games/asteroids', { waitUntil: 'networkidle' });
+    await page.goto('http://localhost:5902/?example=games/asteroids', { waitUntil: 'networkidle' });
     await page.keyboard.press('Enter');
     await page.keyboard.press('ArrowUp');
     await page.keyboard.press('Space');
@@ -129,9 +129,9 @@ Key points in the corrected script:
 For exploratory/agentic browser work (not the checked-in suite), use the `playwright-cli` skill (`.agents/skills/playwright-cli/`) — interactive session commands (`open`, `snapshot`, `click`, `eval`, …), run against the dev host:
 ```bash
 # terminal 1: host
-dotnet watch --project src/Game.Web
+dotnet watch --project src/Game.Wasm
 # terminal 2: agent drives installed Chrome
-playwright-cli open http://localhost:5902/hello --browser=chrome
+playwright-cli open http://localhost:5902/ --browser=chrome
 playwright-cli snapshot
 ```
 

@@ -81,7 +81,7 @@ const SAUCER_POINTS: ReadonlyArray<readonly [number, number]> = [
     [-24, 0], [-12, -6], [-6, -6], [-6, -12], [6, -12], [6, -6], [12, -6], [24, 0], [12, 6], [-12, 6],
 ];
 
-const SOUND_BASE_URL = '_content/Game.UI/audio/';
+const SOUND_BASE_URL = './audio/';
 const soundRegistered = new Set<string>();
 
 function ensureSound(alias: string, name: string): void {

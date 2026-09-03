@@ -150,7 +150,7 @@ const GHOST_COLORS: Record<number, number> = {
     [KIND_CLYDE]: 0xffb74a,
 };
 
-const SOUND_BASE_URL = '_content/Game.UI/audio/';
+const SOUND_BASE_URL = './audio/';
 const soundRegistered = new Set<string>();
 
 function ensureSound(alias: string, fileName: string): void {

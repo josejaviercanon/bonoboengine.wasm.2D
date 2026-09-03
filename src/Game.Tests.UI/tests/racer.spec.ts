@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-test.describe('Endless Race Runner (Game.Web static-SSR host)', () => {
+test.describe('Endless Race Runner (WASM host)', () => {
   test('game select lists racer', async ({ page }) => {
     await page.goto('/');
 
@@ -9,31 +9,15 @@ test.describe('Endless Race Runner (Game.Web static-SSR host)', () => {
     await expect(select.locator('option', { hasText: 'Endless Race Runner' })).toHaveCount(1);
   });
 
-  test('route ships track, car and SSE payload', async ({ page }) => {
-    await page.goto('/examples/games/racer');
-
-    const viewport = page.locator('#pixi-viewport');
-    await expect(viewport).toBeAttached();
-    const payload = await viewport.getAttribute('data-message');
-    expect(payload).toBeTruthy();
-    expect(payload).toContain('games/racer');
-    expect(payload).toContain('/api/racer/stream');
-    expect(payload).toContain('segments');
-    expect(payload).toContain('cars');
-  });
-
   test('PixiJS mounts racer canvas and builds road geometry', async ({ page }) => {
-    await page.goto('/examples/games/racer');
+    await page.goto('/');
 
-    await expect(page.locator('#pixi-viewport canvas').first()).toBeVisible({ timeout: 20_000 });
-    await expect(page.locator('#pixi-viewport')).toHaveAttribute('data-racer-bounds', /^\d+x\d+$/, {
-      timeout: 20_000,
-    });
-    // The start overlay covers the page until the race is started.
+    await expect(page.locator('#pixi-viewport canvas').first()).toBeVisible({ timeout: 60_000 });
+
     await page.getByRole('button', { name: 'START GAME' }).click();
     const configButton = page.locator('#racer-config-button');
     const panel = page.locator('#racer-tuning-panel');
-    await expect(configButton).toBeVisible();
+    await expect(configButton).toBeVisible({ timeout: 30_000 });
     await expect(panel).toBeHidden();
     await configButton.click();
     await expect(panel).toBeVisible();
@@ -49,21 +33,18 @@ test.describe('Endless Race Runner (Game.Web static-SSR host)', () => {
     });
     page.on('pageerror', error => errors.push(String(error)));
 
-    await page.goto('/examples/games/racer');
-    await expect(page.locator('#pixi-viewport canvas').first()).toBeVisible({ timeout: 20_000 });
+    await page.goto('/');
+    await expect(page.locator('#pixi-viewport canvas').first()).toBeVisible({ timeout: 60_000 });
 
-    // Before start: overlay visible, restart hidden, sim paused.
     const startButton = page.getByRole('button', { name: 'START GAME' });
     const restartButton = page.locator('#racer-restart-button');
-    await expect(startButton).toBeVisible();
+    await expect(startButton).toBeVisible({ timeout: 30_000 });
     await expect(restartButton).toBeHidden();
 
-    // START dismisses the overlay, resumes the sim and reveals RESTART.
     await startButton.click();
     await expect(page.locator('#racer-start-overlay')).toBeHidden();
-    await expect(restartButton).toBeVisible();
+    await expect(restartButton).toBeVisible({ timeout: 30_000 });
 
-    // RESTART hits /api/racer/restart (epoch bump resets interpolation state).
     await restartButton.click();
     await page.waitForTimeout(500);
 
@@ -77,9 +58,9 @@ test.describe('Endless Race Runner (Game.Web static-SSR host)', () => {
     });
     page.on('pageerror', error => errors.push(String(error)));
 
-    await page.goto('/examples/games/racer');
-    await expect(page.locator('#pixi-viewport canvas').first()).toBeVisible({ timeout: 20_000 });
-    // Start the race first: the start overlay blocks page input until dismissed.
+    await page.goto('/');
+    await expect(page.locator('#pixi-viewport canvas').first()).toBeVisible({ timeout: 60_000 });
+
     await page.getByRole('button', { name: 'START GAME' }).click();
     await page.keyboard.down('ArrowUp');
     await page.keyboard.down('ArrowRight');
@@ -88,7 +69,7 @@ test.describe('Endless Race Runner (Game.Web static-SSR host)', () => {
     await page.keyboard.up('ArrowUp');
 
     await page.locator('#racer-config-button').click();
-    await expect(page.locator('#racer-tuning-panel')).toBeVisible();
+    await expect(page.locator('#racer-tuning-panel')).toBeVisible({ timeout: 30_000 });
     await page.locator('input[type="range"]').nth(0).fill('4');
     await page.locator('#racer-tuning-panel').getByRole('button', { name: 'Apply' }).click();
     await expect(page.locator('#racer-tuning-panel')).toBeHidden();

@@ -1,62 +1,23 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>BonoboGame.Wasm</title>
+    <title>BonoboEngine</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <base href="/" />
-    <link rel="stylesheet" href="_content/Game.UI/dist/app.css" />
+    <link rel="stylesheet" href="dist/app.css" />
     <link rel="icon" type="image/png" href="favicon.png" />
 </head>
-
 <body class="bg-slate-950 m-0 p-0 overflow-hidden">
-    <div id="app">Loading...</div>
+    <div id="app">
+        <div style="position:fixed;top:0;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-family:sans-serif;">
+            Loading…
+        </div>
+    </div>
 
-    <script type="module" src="_content/Game.UI/dist/game-bundle.js"></script>
+    <div id="pixi-viewport" style="position:fixed;top:52px;left:0;right:0;bottom:0;display:block;z-index:2;"></div>
 
-    <script>
-        function startPixi() {
-            var viewport = document.getElementById('pixi-viewport');
-            if (!viewport) {
-                console.warn('[pixi-debug] #pixi-viewport NOT found in DOM');
-                return;
-            }
-            var message = viewport.getAttribute('data-message') || '';
-            if (!message) message = '{"exampleId":"games/tetris"}';
-            console.log('[pixi-debug] #pixi-viewport found, data-message =', JSON.stringify(message));
-            initGame('pixi-viewport')
-                .then(function () {
-                    if (typeof renderScene !== 'function') {
-                        console.error('[pixi-debug] renderScene is not defined');
-                        return;
-                    }
-                    renderScene(message);
-                })
-                .catch(function (err) {
-                    console.error('[pixi-debug] initGame failed:', err);
-                });
-        }
-
-        window.addEventListener('load', function () {
-            if (typeof initGame === 'function' && document.getElementById('pixi-viewport')) {
-                startPixi();
-                return;
-            }
-            var attempts = 0;
-            (function waitForBundle() {
-                if (typeof initGame === 'function' && document.getElementById('pixi-viewport')) {
-                    startPixi();
-                } else if (++attempts < 300) {
-                    setTimeout(waitForBundle, 50);
-                } else {
-                    console.error('[pixi-debug] initGame or #pixi-viewport not available after 15s');
-                }
-            })();
-        });
-    </script>
-
-    <script src="_framework/blazor.webassembly.js" autostart="false"></script>
-    <script>Blazor.start();</script>
+    <script type="module" src="dist/game-bundle.js"></script>
+    <script type="module" src="main.mjs"></script>
 </body>
-
 </html>

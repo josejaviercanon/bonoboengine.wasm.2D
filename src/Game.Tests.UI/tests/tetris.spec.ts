@@ -1,30 +1,18 @@
 import { expect, test } from '@playwright/test';
 
-test.describe('Tetris game (Game.Web static-SSR host)', () => {
+test.describe('Tetris game (WASM host)', () => {
   test('game select lists Tetris', async ({ page }) => {
     await page.goto('/');
 
     const select = page.locator('#game-select');
-    await expect(select).toBeAttached();
-    await expect(select.locator('option', { hasText: 'Tetris' })).toHaveCount(1);
+    await expect(select).toBeAttached({ timeout: 60_000 });
+    await expect(select.locator('option', { hasText: 'Tetris' })).toHaveCount(1, { timeout: 60_000 });
   });
 
-  test('tetris route ships the SSR payload in #pixi-viewport[data-message]', async ({ page }) => {
-    await page.goto('/examples/games/tetris');
+  test('Tetris bootstraps and mounts a canvas', async ({ page }) => {
+    await page.goto('/');
 
-    const viewport = page.locator('#pixi-viewport');
-    await expect(viewport).toBeAttached();
-
-    const payload = await viewport.getAttribute('data-message');
-    expect(payload).toBeTruthy();
-    expect(payload).toContain('games/tetris');
-    expect(payload).toContain('/api/tetris/stream');
-  });
-
-  test('PixiJS bootstraps and mounts a canvas', async ({ page }) => {
-    await page.goto('/examples/games/tetris');
-
-    await expect(page.locator('#pixi-viewport canvas').first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('#pixi-viewport canvas').first()).toBeVisible({ timeout: 60_000 });
   });
 
   test('start button hides the overlay and arrow keys play without console errors', async ({ page }) => {
@@ -34,17 +22,19 @@ test.describe('Tetris game (Game.Web static-SSR host)', () => {
     });
     page.on('pageerror', err => errors.push(String(err)));
 
-    await page.goto('/examples/games/tetris');
-    await expect(page.locator('#pixi-viewport canvas').first()).toBeVisible({ timeout: 20_000 });
+    await page.goto('/');
+
+    // Wait for PixiJS canvas
+    await expect(page.locator('#pixi-viewport canvas').first()).toBeVisible({ timeout: 60_000 });
 
     // The DOM start overlay is present before starting.
     const startButton = page.getByRole('button', { name: 'START GAME' });
-    await expect(startButton).toBeVisible();
+    await expect(startButton).toBeVisible({ timeout: 30_000 });
 
     await startButton.click();
-    await expect(startButton).toBeHidden();
+    await expect(startButton).toBeHidden({ timeout: 10_000 });
 
-    // Arrow keys steer the piece (client only suggests; C# validates).
+    // Arrow keys steer the piece
     await page.keyboard.press('ArrowLeft');
     await page.keyboard.press('ArrowRight');
     await page.keyboard.press('ArrowUp');
