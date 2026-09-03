@@ -1,8 +1,8 @@
 import { Assets, Text } from 'pixi.js';
 import type { SceneBuilder } from './types';
 
-export const fromFontScene: SceneBuilder = async (app) => {
-    app.renderer.background.color = '#1099bb';
+export const fromFontScene: SceneBuilder = async (_app, _params, ctx) => {
+    _app.renderer.background.color = '#1099bb';
 
     Assets.addBundle('fonts', [
         { alias: 'ChaChicle', src: 'https://pixijs.com/assets/webfont-loader/ChaChicle.ttf' },
@@ -22,5 +22,5 @@ export const fromFontScene: SceneBuilder = async (app) => {
     text3.y = 300;
     text4.y = 450;
 
-    app.stage.addChild(text1, text2, text3, text4);
+    ctx.root.addChild(text1, text2, text3, text4);
 };

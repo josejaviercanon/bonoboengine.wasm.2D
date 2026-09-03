@@ -10,8 +10,10 @@
 </head>
 <body class="bg-slate-950 m-0 p-0 overflow-hidden">
     <div id="app">
-        <div style="position:fixed;top:0;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-family:sans-serif;">
-            Loading…
+        <div style="position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2rem;background:#020617;z-index:30;color:#e2e8f0;font-family:sans-serif;" id="welcome-modal">
+            <h1 style="font-size:2rem;font-weight:bold;margin:0;">Welcome to Bonobo Examples</h1>
+            <p style="font-size:1.1rem;color:#94a3b8;margin:0;text-align:center;max-width:500px;">press continue to load the menu</p>
+            <button id="welcome-continue" type="button" style="background-color:#f97316;color:#020617;border:none;border-radius:0.5rem;padding:0.75rem 2rem;font-size:1.1rem;font-weight:bold;cursor:pointer;">Continue</button>
         </div>
     </div>
 

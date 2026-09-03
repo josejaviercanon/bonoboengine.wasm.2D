@@ -1,8 +1,8 @@
 import { Assets, BitmapText } from 'pixi.js';
 import type { SceneBuilder } from './types';
 
-export const bitmapTextScene: SceneBuilder = async (app) => {
-    app.renderer.background.color = '#1099bb';
+export const bitmapTextScene: SceneBuilder = async (_app, _params, ctx) => {
+    _app.renderer.background.color = '#1099bb';
 
     await Assets.load('https://pixijs.com/assets/bitmap-font/desyrel.xml');
 
@@ -18,5 +18,5 @@ export const bitmapTextScene: SceneBuilder = async (app) => {
     bitmapFontText.x = 50;
     bitmapFontText.y = 200;
 
-    app.stage.addChild(bitmapFontText);
+    ctx.root.addChild(bitmapFontText);
 };

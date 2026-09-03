@@ -1,8 +1,25 @@
 import { expect, test } from '@playwright/test';
 
 test.describe('Game.Wasm browser-wasm host', () => {
-  test('home page renders toolbar after WASM boot', async ({ page }) => {
+  test('welcome modal appears on boot and dismisses on Continue', async ({ page }) => {
     await page.goto('/');
+
+    const modal = page.locator('#welcome-modal');
+    await expect(modal).toBeVisible({ timeout: 60_000 });
+    await expect(modal.locator('h1')).toContainText('Bonobo Examples');
+
+    const continueBtn = page.locator('#welcome-continue');
+    await continueBtn.click();
+    await expect(modal).toBeHidden({ timeout: 10_000 });
+  });
+
+  test('home page renders toolbar after Welcome dismiss', async ({ page }) => {
+    await page.goto('/');
+
+    // Dismiss welcome modal first
+    const continueBtn = page.locator('#welcome-continue');
+    await expect(continueBtn).toBeVisible({ timeout: 60_000 });
+    await continueBtn.click();
 
     // Wait for the toolbar selects to be populated by main.mjs after WASM boot
     const exampleSelect = page.locator('#example-select');

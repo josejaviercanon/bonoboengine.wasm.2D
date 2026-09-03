@@ -155,7 +155,7 @@ function isSnakeRenderSignal(value: unknown): value is SnakeRenderSignal {
  * Snake scene: C# owns grid rules, food fall, collision and state. SSE carries
  * batched snapshots; Pixi interpolates previous/current positions at display Hz.
  */
-export const snakeScene: SceneBuilder = (app, params) => {
+export const snakeScene: SceneBuilder = (app, params, ctx) => {
     const s = ((params ?? {}) as SnakeSceneParams).snake ?? {};
     app.renderer.background.color = '#020617';
 
@@ -174,8 +174,8 @@ export const snakeScene: SceneBuilder = (app, params) => {
     foodGfx.scale.set(scale);
     foodGfx.x = board.x;
     foodGfx.y = board.y;
-    app.stage.addChild(board);
-    app.stage.addChild(foodGfx);
+    ctx.root.addChild(board);
+    ctx.root.addChild(foodGfx);
 
     // Wall border around the play field: static presentation, drawn once.
     const border = new Graphics();
@@ -183,7 +183,7 @@ export const snakeScene: SceneBuilder = (app, params) => {
     border.scale.set(scale);
     border.x = board.x;
     border.y = board.y;
-    app.stage.addChild(border);
+    ctx.root.addChild(border);
 
     const scoreText = new Text({
         text: 'Score: 0',
@@ -191,7 +191,7 @@ export const snakeScene: SceneBuilder = (app, params) => {
     });
     scoreText.anchor.set(1, 0);
     scoreText.position.set(app.screen.width - 16, 12);
-    app.stage.addChild(scoreText);
+    ctx.root.addChild(scoreText);
 
     // Simple start/game-over GUI: DOM overlay with a start button.
     const overlay = document.createElement('div');
@@ -351,5 +351,5 @@ export const snakeScene: SceneBuilder = (app, params) => {
         overlay.remove();
     };
     stream.onInterrupted(() => console.warn('[pixi-debug] snake SSE interrupted; browser will retry'));
-    window.addEventListener('beforeunload', cleanup, { once: true });
+    return cleanup;
 };

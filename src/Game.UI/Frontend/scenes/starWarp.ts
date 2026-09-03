@@ -9,8 +9,8 @@ interface Star {
     z: number;
 }
 
-export const starWarpScene: SceneBuilder = async (app) => {
-    app.renderer.background.color = '#000000';
+export const starWarpScene: SceneBuilder = async (_app, _params, ctx) => {
+    _app.renderer.background.color = '#000000';
 
     const starTexture = await Assets.load('https://pixijs.com/assets/star.png');
 
@@ -23,7 +23,7 @@ export const starWarpScene: SceneBuilder = async (app) => {
     for (let i = 0; i < starCount; i++) {
         const sprite = new Sprite(starTexture);
         sprite.anchor.set(0.5, 0.7);
-        app.stage.addChild(sprite);
+        ctx.root.addChild(sprite);
         stars.push({
             sprite,
             x: Math.random() * 1000 - 500,
@@ -32,19 +32,19 @@ export const starWarpScene: SceneBuilder = async (app) => {
         });
     }
 
-    setInterval(() => {
+    const intervalId = setInterval(() => {
         warpSpeed = Math.random();
     }, 5000);
 
-    app.ticker.add((ticker) => {
-        speed += (warpSpeed - speed) / 20 * ticker.deltaTime;
+    const ticker = (tickerInner: { deltaTime: number }) => {
+        speed += (warpSpeed - speed) / 20 * tickerInner.deltaTime;
 
         const cameraZ = 0;
-        const centerX = app.screen.width / 2;
-        const centerY = app.screen.height / 2;
+        const centerX = _app.screen.width / 2;
+        const centerY = _app.screen.height / 2;
 
         for (const star of stars) {
-            star.z -= speed * 10 * ticker.deltaTime;
+            star.z -= speed * 10 * tickerInner.deltaTime;
             if (star.z <= 0) {
                 star.z += 1000;
             }
@@ -61,5 +61,11 @@ export const starWarpScene: SceneBuilder = async (app) => {
             const s = 1 - star.z / 1000;
             star.sprite.scale.set(s, s);
         }
-    });
+    };
+    _app.ticker.add(ticker);
+
+    return () => {
+        _app.ticker.remove(ticker);
+        clearInterval(intervalId);
+    };
 };

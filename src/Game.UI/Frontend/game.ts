@@ -1,27 +1,12 @@
 import { Application, Text, TextStyle } from 'pixi.js';
-import { sceneRegistry } from './scenes';
 import { registerLocalBufferProvider, type LocalBufferProvider } from './scenes/signalSource';
 import { attachCSharpStatsOverlay, attachStatsOverlay, toggleCSharpStats, togglePixiStats } from './stats/overlays';
+import { initSceneManager, mountScene } from './scenes/sceneManager';
+import type { ScenePayload } from './scenes/sceneManager';
 
 // Debug helper: every interop entry/exit point logs under one prefix so the
 // whole pipeline is traceable from the browser console (F12).
 const dbg = (...args: unknown[]) => console.log('[pixi-debug]', ...args);
-
-interface ScenePayload {
-    exampleId?: string;
-    title?: string;
-    sourceUrl?: string;
-    /**
-     * ADR-007 Phase 2/3: shared-memory signal buffer, set only by the
-     * co-located WASM host. `bufferPtr` is the byte offset of the pinned float[]
-     * (GCHandle) backing the Float32Array view the host registers via
-     * `registerLocalBufferProvider`; `stride`/`entityCount` are diagnostics
-     * mirrors of the per-signal header (layout contract: `scenes/bufferLayout.ts`).
-     */
-    bufferPtr?: number;
-    stride?: number;
-    entityCount?: number;
-}
 
 declare global {
     interface Window {
@@ -80,6 +65,8 @@ export async function initGame(containerId: string): Promise<void> {
     container.appendChild(app.canvas);
     dbg('canvas appended to container');
 
+    initSceneManager(app);
+
     attachStatsOverlay(app.ticker);
     attachCSharpStatsOverlay();
 
@@ -125,8 +112,8 @@ function centerMessage(): void {
 
 /**
  * Entry point for the examples pipeline. The SSR payload is a JSON string with
- * an `exampleId`; dispatch to the matching scene builder. Plain strings fall
- * back to the legacy centered-text rendering (page "/").
+ * an `exampleId`; dispatch to the matching scene builder via sceneManager.
+ * Plain strings fall back to the legacy centered-text rendering (page "/").
  */
 export async function renderScene(message: string): Promise<void> {
     dbg('renderScene called, message =', JSON.stringify(message));
@@ -134,6 +121,12 @@ export async function renderScene(message: string): Promise<void> {
     if (!app || !container) {
         console.error('[pixi-debug] renderScene skipped: PixiJS app or container is not initialized');
         return;
+    }
+
+    // Destroy any lingering messageText from renderText fallback
+    if (messageText) {
+        messageText.destroy();
+        messageText = null;
     }
 
     let payload: ScenePayload | null = null;
@@ -151,18 +144,7 @@ export async function renderScene(message: string): Promise<void> {
         return;
     }
 
-    const scene = sceneRegistry[payload.exampleId];
-    if (!scene) {
-        console.error(`[pixi-debug] no scene registered for exampleId '${payload.exampleId}'`);
-        return;
-    }
-
-    dbg('running scene for exampleId =', payload.exampleId);
-    try {
-        await scene(app, payload as unknown as Record<string, unknown>);
-    } catch (err) {
-        console.error(`[pixi-debug] scene '${payload.exampleId}' failed:`, err);
-    }
+    await mountScene(payload);
 }
 
 dbg('game-bundle loaded, exposing window.initGame / window.renderText / window.renderScene');

@@ -1,8 +1,22 @@
 import { expect, test } from '@playwright/test';
 
 test.describe('Endless Race Runner (WASM host)', () => {
+  async function dismissWelcomeAndSelect(page, gameId: string) {
+    const continueBtn = page.locator('#welcome-continue');
+    await expect(continueBtn).toBeVisible({ timeout: 60_000 });
+    await continueBtn.click();
+
+    const select = page.locator('#game-select');
+    await expect(select).toBeAttached({ timeout: 60_000 });
+    await select.selectOption(gameId);
+  }
+
   test('game select lists racer', async ({ page }) => {
     await page.goto('/');
+
+    const continueBtn = page.locator('#welcome-continue');
+    await expect(continueBtn).toBeVisible({ timeout: 60_000 });
+    await continueBtn.click();
 
     const select = page.locator('#game-select');
     await expect(select).toBeAttached();
@@ -13,6 +27,8 @@ test.describe('Endless Race Runner (WASM host)', () => {
     await page.goto('/');
 
     await expect(page.locator('#pixi-viewport canvas').first()).toBeVisible({ timeout: 60_000 });
+
+    await dismissWelcomeAndSelect(page, 'games/racer');
 
     await page.getByRole('button', { name: 'START GAME' }).click();
     const configButton = page.locator('#racer-config-button');
@@ -35,6 +51,8 @@ test.describe('Endless Race Runner (WASM host)', () => {
 
     await page.goto('/');
     await expect(page.locator('#pixi-viewport canvas').first()).toBeVisible({ timeout: 60_000 });
+
+    await dismissWelcomeAndSelect(page, 'games/racer');
 
     const startButton = page.getByRole('button', { name: 'START GAME' });
     const restartButton = page.locator('#racer-restart-button');
@@ -60,6 +78,8 @@ test.describe('Endless Race Runner (WASM host)', () => {
 
     await page.goto('/');
     await expect(page.locator('#pixi-viewport canvas').first()).toBeVisible({ timeout: 60_000 });
+
+    await dismissWelcomeAndSelect(page, 'games/racer');
 
     await page.getByRole('button', { name: 'START GAME' }).click();
     await page.keyboard.down('ArrowUp');

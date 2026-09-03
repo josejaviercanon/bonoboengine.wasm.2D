@@ -87,7 +87,7 @@ const decodeTetrisSprite: EntityDecoder<TetrisSpriteState> = (floats, offset) =>
  * cells, forwards key input to the sim as a suggestion, and shows score/rows/game-over.
  * C# is the sole authority.
  */
-export const tetrisScene: SceneBuilder = (app, params) => {
+export const tetrisScene: SceneBuilder = (app, params, ctx) => {
     const t = ((params ?? {}) as TetrisSceneParams).tetris ?? {};
     app.renderer.background.color = '#020617';
 
@@ -102,14 +102,14 @@ export const tetrisScene: SceneBuilder = (app, params) => {
     board.scale.set(scale);
     board.x = (app.screen.width - boardWidth * scale) / 2;
     board.y = (app.screen.height - boardHeight * scale) / 2;
-    app.stage.addChild(board);
+    ctx.root.addChild(board);
 
     const border = new Graphics();
     border.rect(0, 0, boardWidth, boardHeight).stroke({ width: 4, color: '#8B0000' });
     border.scale.set(scale);
     border.x = board.x;
     border.y = board.y;
-    app.stage.addChild(border);
+    ctx.root.addChild(border);
 
     const scoreText = new Text({
         text: 'Score: 0  Rows: 0  Level: 1',
@@ -117,7 +117,7 @@ export const tetrisScene: SceneBuilder = (app, params) => {
     });
     scoreText.anchor.set(1, 0);
     scoreText.position.set(app.screen.width - 16, 12);
-    app.stage.addChild(scoreText);
+    ctx.root.addChild(scoreText);
 
     const overlay = document.createElement('div');
     overlay.style.cssText =
@@ -281,6 +281,6 @@ export const tetrisScene: SceneBuilder = (app, params) => {
         app.ticker.remove(onTicker);
         overlay.remove();
     };
-    stream.onInterrupted(() => cleanup());
-    window.addEventListener('beforeunload', cleanup);
+    stream.onInterrupted(() => console.warn('[pixi-debug] tetris SSE interrupted'));
+    return cleanup;
 };

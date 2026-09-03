@@ -429,7 +429,7 @@ function makeSettingsPanel(
     return { element: panel, update, read, setVisible, setBusy };
 }
 
-export const racerScene: SceneBuilder = async (app, params) => {
+export const racerScene: SceneBuilder = async (app, params, ctx) => {
     const payload = (params ?? {}) as unknown as RacerSceneParams;
     const racer = payload.racer ?? {};
     const track = racer.track ?? {};
@@ -466,7 +466,7 @@ export const racerScene: SceneBuilder = async (app, params) => {
     const carContainer = new Container();
     const playerContainer = new Container();
     world.addChild(sceneryContainer, roadGraphics, carContainer, playerContainer);
-    app.stage.addChild(world);
+    ctx.root.addChild(world);
 
     const layerTextures = [
         new Texture({ source: background.source, frame: new Rectangle(5, 495, 640, 480) }),
@@ -500,7 +500,7 @@ export const racerScene: SceneBuilder = async (app, params) => {
     hudTime.visible = false;
     hudLast.visible = false;
     hudFast.visible = false;
-    app.stage.addChild(hudSpeed, hudTime, hudLast, hudFast);
+    ctx.root.addChild(hudSpeed, hudTime, hudLast, hudFast);
 
     // Assigned below once the signal transport is connected; command helpers
     // route through it so `fetch` POST exists only in the SSE (multiplayer)
@@ -1190,5 +1190,5 @@ export const racerScene: SceneBuilder = async (app, params) => {
         for (const texture of textureCache.values()) texture.destroy();
         for (const texture of layerTextures) texture.destroy();
     };
-    window.addEventListener('beforeunload', cleanup);
+    return cleanup;
 };

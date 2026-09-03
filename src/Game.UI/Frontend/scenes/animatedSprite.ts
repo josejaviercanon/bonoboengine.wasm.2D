@@ -2,8 +2,8 @@ import { AnimatedSprite, Assets } from 'pixi.js';
 import type { Texture } from 'pixi.js';
 import type { SceneBuilder } from './types';
 
-export const animatedSpriteScene: SceneBuilder = async (app) => {
-    app.renderer.background.color = '#1099bb';
+export const animatedSpriteScene: SceneBuilder = async (_app, _params, ctx) => {
+    _app.renderer.background.color = '#1099bb';
 
     const spritesheet = await Assets.load('https://pixijs.com/assets/spritesheet/fighter.json');
 
@@ -21,9 +21,9 @@ export const animatedSpriteScene: SceneBuilder = async (app) => {
         animationSpeed: 0.5,
         autoPlay: true,
     });
-    anim.x = app.screen.width / 2;
-    anim.y = app.screen.height / 2;
+    anim.x = _app.screen.width / 2;
+    anim.y = _app.screen.height / 2;
     anim.anchor.set(0.5);
 
-    app.stage.addChild(anim);
+    ctx.root.addChild(anim);
 };

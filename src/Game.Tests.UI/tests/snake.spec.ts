@@ -1,8 +1,22 @@
 import { expect, test } from '@playwright/test';
 
 test.describe('Snake game (WASM host)', () => {
+  async function dismissWelcomeAndSelect(page, gameId: string) {
+    const continueBtn = page.locator('#welcome-continue');
+    await expect(continueBtn).toBeVisible({ timeout: 60_000 });
+    await continueBtn.click();
+
+    const select = page.locator('#game-select');
+    await expect(select).toBeAttached({ timeout: 60_000 });
+    await select.selectOption(gameId);
+  }
+
   test('game select lists Snake', async ({ page }) => {
     await page.goto('/');
+
+    const continueBtn = page.locator('#welcome-continue');
+    await expect(continueBtn).toBeVisible({ timeout: 60_000 });
+    await continueBtn.click();
 
     const select = page.locator('#game-select');
     await expect(select).toBeAttached();
@@ -18,6 +32,8 @@ test.describe('Snake game (WASM host)', () => {
 
     await page.goto('/');
     await expect(page.locator('#pixi-viewport canvas').first()).toBeVisible({ timeout: 60_000 });
+
+    await dismissWelcomeAndSelect(page, 'games/snake');
 
     const startButton = page.getByRole('button', { name: 'START GAME' });
     await expect(startButton).toBeVisible({ timeout: 30_000 });

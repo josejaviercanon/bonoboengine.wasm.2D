@@ -1,15 +1,15 @@
 import { Assets, Sprite } from 'pixi.js';
 import type { SceneBuilder } from './types';
 
-export const basicSpriteScene: SceneBuilder = async (app) => {
-    app.renderer.background.color = '#1099bb';
+export const basicSpriteScene: SceneBuilder = async (_app, _params, ctx) => {
+    _app.renderer.background.color = '#1099bb';
 
     const texture = await Assets.load('https://pixijs.com/assets/bunny.png');
 
     const bunny = new Sprite(texture);
     bunny.anchor.set(0.5);
-    bunny.x = app.screen.width / 2;
-    bunny.y = app.screen.height / 2;
+    bunny.x = _app.screen.width / 2;
+    bunny.y = _app.screen.height / 2;
     bunny.scale.set(4);
     bunny.eventMode = 'static';
     bunny.cursor = 'pointer';
@@ -19,11 +19,16 @@ export const basicSpriteScene: SceneBuilder = async (app) => {
         bunny.scale.y *= 1.25;
     });
 
-    app.stage.addChild(bunny);
+    ctx.root.addChild(bunny);
 
-    app.ticker.add((ticker) => {
+    const ticker = (tickerInner: { deltaTime: number }) => {
         if (!bunny.destroyed) {
-            bunny.rotation += 0.1 * ticker.deltaTime;
+            bunny.rotation += 0.1 * tickerInner.deltaTime;
         }
-    });
+    };
+    _app.ticker.add(ticker);
+
+    return () => {
+        _app.ticker.remove(ticker);
+    };
 };

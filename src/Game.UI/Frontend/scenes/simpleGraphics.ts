@@ -1,8 +1,8 @@
 import { Graphics } from 'pixi.js';
 import type { SceneBuilder } from './types';
 
-export const simpleGraphicsScene: SceneBuilder = (app) => {
-    app.renderer.background.color = '#1099bb';
+export const simpleGraphicsScene: SceneBuilder = (_app, _params, ctx) => {
+    _app.renderer.background.color = '#1099bb';
 
     const graphics = new Graphics();
 
@@ -41,5 +41,5 @@ export const simpleGraphicsScene: SceneBuilder = (app) => {
         graphics.tint = 0x00ff00;
     });
 
-    app.stage.addChild(graphics);
+    ctx.root.addChild(graphics);
 };

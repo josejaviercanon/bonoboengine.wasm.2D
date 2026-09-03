@@ -315,7 +315,7 @@ function isAsteroidsRenderSignal(value: unknown): value is AsteroidsRenderSignal
  * suggestions, and runs the presentation layer: particle-emitter bursts, box2d3-wasm
  * debris (visual only) and a neon GlowFilter. C# is the sole authority.
  */
-export const asteroidsScene: SceneBuilder = (app, params) => {
+export const asteroidsScene: SceneBuilder = (app, params, ctx) => {
     const a = ((params ?? {}) as AsteroidsSceneParams).asteroids ?? {};
     app.renderer.background.color = '#020617';
 
@@ -327,7 +327,7 @@ export const asteroidsScene: SceneBuilder = (app, params) => {
     court.scale.set(scale);
     court.x = (app.screen.width - courtWidth * scale) / 2;
     court.y = (app.screen.height - courtHeight * scale) / 2;
-    app.stage.addChild(court);
+    ctx.root.addChild(court);
 
     const world = new Graphics();
     court.addChild(world);
@@ -348,7 +348,7 @@ export const asteroidsScene: SceneBuilder = (app, params) => {
         style: new TextStyle({ fontFamily: 'monospace', fontSize: 16, fontWeight: 'bold', fill: '#e2e8f0' }),
     });
     scoreText.position.set(12, 12);
-    app.stage.addChild(scoreText);
+    ctx.root.addChild(scoreText);
 
     const hiText = new Text({
         text: 'HI: 000000',
@@ -356,7 +356,7 @@ export const asteroidsScene: SceneBuilder = (app, params) => {
     });
     hiText.anchor.set(0.5, 0);
     hiText.position.set(app.screen.width / 2, 12);
-    app.stage.addChild(hiText);
+    ctx.root.addChild(hiText);
 
     const livesText = new Text({
         text: '^'.repeat(2),
@@ -364,7 +364,7 @@ export const asteroidsScene: SceneBuilder = (app, params) => {
     });
     livesText.anchor.set(1, 0);
     livesText.position.set(app.screen.width - 12, 12);
-    app.stage.addChild(livesText);
+    ctx.root.addChild(livesText);
 
     const overlay = document.createElement('div');
     overlay.style.cssText =
@@ -848,6 +848,6 @@ export const asteroidsScene: SceneBuilder = (app, params) => {
         sound.stop('asteroids-thrust');
         overlay.remove();
     };
-    stream.onInterrupted(() => cleanup());
-    window.addEventListener('beforeunload', cleanup);
+    stream.onInterrupted(() => console.warn('[pixi-debug] asteroids SSE interrupted'));
+    return cleanup;
 };

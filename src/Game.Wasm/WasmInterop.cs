@@ -26,6 +26,15 @@ public static partial class WasmInterop
         _buffers[eventName] = buffer;
     }
 
+    internal static void UnregisterBuffer(string eventName)
+    {
+        if (_buffers.TryGetValue(eventName, out var buffer))
+        {
+            buffer.Dispose();
+            _buffers.Remove(eventName);
+        }
+    }
+
     internal static void Notify(string eventName)
     {
         if (_buffers.TryGetValue(eventName, out var buffer))
@@ -57,6 +66,25 @@ public static partial class WasmInterop
     internal static void ConnectGame(string game)
     {
         _sims?.Connect(game);
+    }
+
+    [JSExport]
+    internal static void SwitchGame(string exampleId)
+    {
+        var shortKey = exampleId switch
+        {
+            "games/snake" => "snake",
+            "games/tetris" => "tetris",
+            "games/breakout" => "breakout",
+            "games/asteroids" => "asteroids",
+            "games/pacman" => "pacman",
+            "games/racer" => "racer",
+            _ => null
+        };
+        if (shortKey != null)
+            _sims?.Connect(shortKey);
+        else
+            _sims?.Connect(""); // stops any active game sim
     }
 
     [JSExport]

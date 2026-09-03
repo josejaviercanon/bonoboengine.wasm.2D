@@ -1,3 +1,13 @@
-import type { Application } from 'pixi.js';
+import type { Application, Container } from 'pixi.js';
 
-export type SceneBuilder = (app: Application, params: Record<string, unknown>) => Promise<void> | void;
+export interface SceneContext {
+    root: Container;
+}
+
+export type SceneCleanup = () => void;
+
+export type SceneBuilder = (
+    app: Application,
+    params: Record<string, unknown>,
+    ctx: SceneContext,
+) => SceneCleanup | void | Promise<SceneCleanup | void>;

@@ -1,8 +1,22 @@
 import { expect, test } from '@playwright/test';
 
 test.describe('Tetris game (WASM host)', () => {
+  async function dismissWelcomeAndSelect(page, gameId: string) {
+    const continueBtn = page.locator('#welcome-continue');
+    await expect(continueBtn).toBeVisible({ timeout: 60_000 });
+    await continueBtn.click();
+
+    const select = page.locator('#game-select');
+    await expect(select).toBeAttached({ timeout: 60_000 });
+    await select.selectOption(gameId);
+  }
+
   test('game select lists Tetris', async ({ page }) => {
     await page.goto('/');
+
+    const continueBtn = page.locator('#welcome-continue');
+    await expect(continueBtn).toBeVisible({ timeout: 60_000 });
+    await continueBtn.click();
 
     const select = page.locator('#game-select');
     await expect(select).toBeAttached({ timeout: 60_000 });
@@ -26,6 +40,9 @@ test.describe('Tetris game (WASM host)', () => {
 
     // Wait for PixiJS canvas
     await expect(page.locator('#pixi-viewport canvas').first()).toBeVisible({ timeout: 60_000 });
+
+    // Dismiss welcome modal and select Tetris
+    await dismissWelcomeAndSelect(page, 'games/tetris');
 
     // The DOM start overlay is present before starting.
     const startButton = page.getByRole('button', { name: 'START GAME' });

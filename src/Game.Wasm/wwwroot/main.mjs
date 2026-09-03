@@ -82,8 +82,9 @@ function buildToolbar() {
     }
     left.appendChild(gameSelect);
 
-    // Selection handler
+    // Selection handler: switch game sim first, then fetch payload, then render
     const onSelect = async (id) => {
+        exports.Game.Wasm.WasmInterop.SwitchGame(id);
         const payload = exports.Game.Wasm.WasmInterop.GetExamplePayload(id);
         if (typeof window.renderScene === 'function') {
             await window.renderScene(payload);
@@ -120,17 +121,8 @@ function buildToolbar() {
 
 const { exampleSelect, gameSelect } = buildToolbar();
 
-// Determine initial example from URL query or default
-const params = new URLSearchParams(window.location.search);
-const initialId = params.get('example') || 'games/tetris';
-const cat = exampleList.find(e => e.id === initialId);
-if (cat) {
-    if (cat.group === 'Games') gameSelect.value = initialId;
-    else exampleSelect.value = initialId;
-}
-
-// Wait for pixi bundle then render initial scene
-async function bootPixiAndRender() {
+// Wait for pixi bundle then init canvas (blank, no scene)
+async function bootPixi() {
     if (typeof window.initGame !== 'function') {
         await new Promise(resolve => {
             const check = () => {
@@ -144,9 +136,21 @@ async function bootPixiAndRender() {
         });
     }
     await window.initGame('pixi-viewport');
-    const payload = exports.Game.Wasm.WasmInterop.GetExamplePayload(initialId);
-    dbg('initial payload acquired, rendering', initialId);
-    await window.renderScene(payload);
 }
 
-await bootPixiAndRender();
+await bootPixi();
+
+// Welcome modal: click Continue to enable audio and dismiss
+const welcomeModal = document.getElementById('welcome-modal');
+const continueBtn = document.getElementById('welcome-continue');
+if (welcomeModal && continueBtn) {
+    continueBtn.addEventListener('click', () => {
+        // Unlock audio context (browser autoplay policy)
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (AudioContext) {
+            const ctx = new AudioContext();
+            ctx.resume().catch(() => {});
+        }
+        welcomeModal.style.display = 'none';
+    });
+}

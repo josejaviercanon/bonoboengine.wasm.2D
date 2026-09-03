@@ -168,7 +168,7 @@ function playSound(alias: string, fileName: string): void {
  * Pacman presentation. C# owns maze rules, movement, ghost AI and collisions.
  * This scene only interpolates snapshots, draws, forwards input and plays edge-event audio.
  */
-export const pacmanScene: SceneBuilder = (app, params) => {
+export const pacmanScene: SceneBuilder = (app, params, ctx) => {
     const p = ((params ?? {}) as PacmanSceneParams).pacman ?? {};
     app.renderer.background.color = '#020617';
 
@@ -184,7 +184,7 @@ export const pacmanScene: SceneBuilder = (app, params) => {
     const pelletLayer = new Graphics();
     const actorLayer = new Graphics();
     board.addChild(mazeLayer, pelletLayer, actorLayer);
-    app.stage.addChild(board);
+    ctx.root.addChild(board);
 
     const drawMaze = () => {
         mazeLayer.clear();
@@ -224,7 +224,7 @@ export const pacmanScene: SceneBuilder = (app, params) => {
         text: 'LIVES 3',
         style: new TextStyle({ fontFamily: 'monospace', fontSize: 16, fontWeight: 'bold', fill: '#fde047' }),
     });
-    app.stage.addChild(scoreText, levelText, livesText);
+    ctx.root.addChild(scoreText, levelText, livesText);
 
     const overlay = document.createElement('div');
     overlay.style.cssText =
@@ -484,24 +484,16 @@ export const pacmanScene: SceneBuilder = (app, params) => {
         }
     });
 
-    let cleanedUp = false;
     const cleanup = () => {
-        if (cleanedUp) return;
-        cleanedUp = true;
         stream?.close();
         app.ticker.remove(onTicker);
         window.removeEventListener('resize', layout);
         window.removeEventListener('keydown', onKeyDown);
         overlay.remove();
-        scoreText.destroy();
-        levelText.destroy();
-        livesText.destroy();
-        board.destroy({ children: true });
     };
-
     stream.onInterrupted(() => {
         // EventSource reconnects automatically. Keep scene alive for transient network loss.
         console.warn('[pixi-debug] pacman SSE connection interrupted; browser will retry');
     });
-    window.addEventListener('beforeunload', cleanup, { once: true });
+    return cleanup;
 };

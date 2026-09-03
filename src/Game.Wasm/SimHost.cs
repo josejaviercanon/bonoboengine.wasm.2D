@@ -14,7 +14,7 @@ namespace Game.Wasm;
 public sealed class SimHost : IExampleSims, IDisposable
 {
     private readonly object _sync = new();
-    private bool _paused;
+    private string? _activeGame;
 
     private EcsSimulation? _ecs;
     private TetrisSimulation? _tetris;
@@ -60,13 +60,15 @@ public sealed class SimHost : IExampleSims, IDisposable
 
     public void SetPaused(bool paused)
     {
-        _paused = paused;
+        // Reserved for future use — per-game Pause/Resume is the active path.
     }
 
     public void Connect(string game)
     {
         lock (_sync)
         {
+            if (game == _activeGame) return;
+            StopActiveLocked();
             switch (game)
             {
                 case "ecs": _ = Ecs; break;
@@ -76,8 +78,26 @@ public sealed class SimHost : IExampleSims, IDisposable
                 case "asteroids": _ = Asteroids; break;
                 case "pacman": _ = Pacman; break;
                 case "racer": _ = Racer; break;
+                default: break;
             }
+            _activeGame = game;
         }
+    }
+
+    private void StopActiveLocked()
+    {
+        if (_activeGame == null) return;
+        switch (_activeGame)
+        {
+            case "ecs": _ecs?.Dispose(); _ecs = null; WasmInterop.UnregisterBuffer("sprite-move"); break;
+            case "tetris": _tetris?.Dispose(); _tetris = null; WasmInterop.UnregisterBuffer("tetris-move"); break;
+            case "snake": _snake?.Dispose(); _snake = null; WasmInterop.UnregisterBuffer("snake-move"); break;
+            case "breakout": _breakout?.Dispose(); _breakout = null; WasmInterop.UnregisterBuffer("breakout-move"); break;
+            case "asteroids": _asteroids?.Dispose(); _asteroids = null; WasmInterop.UnregisterBuffer("asteroids-move"); break;
+            case "pacman": _pacman?.Dispose(); _pacman = null; WasmInterop.UnregisterBuffer("pacman-move"); break;
+            case "racer": _racer?.Dispose(); _racer = null; WasmInterop.UnregisterBuffer("racer-move"); break;
+        }
+        _activeGame = null;
     }
 
     public void Start(string game)

@@ -1,11 +1,11 @@
 import { Assets, Container, Sprite } from 'pixi.js';
 import type { SceneBuilder } from './types';
 
-export const containerPivotScene: SceneBuilder = async (app) => {
-    app.renderer.background.color = '#1099bb';
+export const containerPivotScene: SceneBuilder = async (_app, _params, ctx) => {
+    _app.renderer.background.color = '#1099bb';
 
     const container = new Container();
-    app.stage.addChild(container);
+    ctx.root.addChild(container);
 
     const texture = await Assets.load('https://pixijs.com/assets/bunny.png');
 
@@ -17,12 +17,17 @@ export const containerPivotScene: SceneBuilder = async (app) => {
         container.addChild(bunny);
     }
 
-    container.x = app.screen.width / 2;
-    container.y = app.screen.height / 2;
+    container.x = _app.screen.width / 2;
+    container.y = _app.screen.height / 2;
     container.pivot.x = container.width / 2;
     container.pivot.y = container.height / 2;
 
-    app.ticker.add((ticker) => {
-        container.rotation -= 0.01 * ticker.deltaTime;
-    });
+    const ticker = (tickerInner: { deltaTime: number }) => {
+        container.rotation -= 0.01 * tickerInner.deltaTime;
+    };
+    _app.ticker.add(ticker);
+
+    return () => {
+        _app.ticker.remove(ticker);
+    };
 };

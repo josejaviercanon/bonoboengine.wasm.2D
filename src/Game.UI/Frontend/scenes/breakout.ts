@@ -78,7 +78,7 @@ const dbg = (...args: unknown[]) => console.log('[pixi-debug] breakout:', ...arg
  * sprites, forwards held paddle input + launch as a suggestion, and reacts to ECS edge
  * events (brick/paddle/levelup/loselife/gameover sounds). C# is the sole authority.
  */
-export const breakoutScene: SceneBuilder = (app, params) => {
+export const breakoutScene: SceneBuilder = (app, params, ctx) => {
     const b = ((params ?? {}) as BreakoutSceneParams).breakout ?? {};
     // Opaque dark clear: canvas is opaque (backgroundAlpha: 1 at init), so the board
     // renders on a solid backdrop without needing a covering background rect.
@@ -94,14 +94,14 @@ export const breakoutScene: SceneBuilder = (app, params) => {
     // visible canvas region on every display/DPR combination.
     court.x = 0;
     court.y = 0;
-    app.stage.addChild(court);
+    ctx.root.addChild(court);
 
     const border = new Graphics();
     border.rect(0, 0, courtWidth, courtHeight).stroke({ width: 4, color: '#8B0000' });
     border.scale.set(scale);
     border.x = court.x;
     border.y = court.y;
-    app.stage.addChild(border);
+    ctx.root.addChild(border);
 
     const hudText = new Text({
         text: 'Score: 0  Lives: 3  Level: 1',
@@ -109,7 +109,7 @@ export const breakoutScene: SceneBuilder = (app, params) => {
     });
     hudText.anchor.set(1, 0);
     hudText.position.set(app.screen.width - 16, 12);
-    app.stage.addChild(hudText);
+    ctx.root.addChild(hudText);
 
     const overlay = document.createElement('div');
     overlay.style.cssText =
@@ -360,6 +360,6 @@ export const breakoutScene: SceneBuilder = (app, params) => {
         app.ticker.remove(onTicker);
         overlay.remove();
     };
-    stream.onInterrupted(() => cleanup());
-    window.addEventListener('beforeunload', cleanup);
+    stream.onInterrupted(() => console.warn('[pixi-debug] breakout SSE interrupted'));
+    return cleanup;
 };

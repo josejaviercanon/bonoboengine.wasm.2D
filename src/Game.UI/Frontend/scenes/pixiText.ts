@@ -1,13 +1,13 @@
 import { FillGradient, Text } from 'pixi.js';
 import type { SceneBuilder } from './types';
 
-export const pixiTextScene: SceneBuilder = (app) => {
-    app.renderer.background.color = '#1099bb';
+export const pixiTextScene: SceneBuilder = (_app, _params, ctx) => {
+    _app.renderer.background.color = '#1099bb';
 
     const basicText = new Text({ text: 'Basic text in pixi' });
     basicText.x = 50;
     basicText.y = 100;
-    app.stage.addChild(basicText);
+    ctx.root.addChild(basicText);
 
     const fill = new FillGradient(0, 0, 0, 36 * 1.7 * 7);
 
@@ -38,7 +38,7 @@ export const pixiTextScene: SceneBuilder = (app) => {
     });
     richText.x = 50;
     richText.y = 220;
-    app.stage.addChild(richText);
+    ctx.root.addChild(richText);
 
     const skewText = new Text({
         text: 'SKEW IS COOL',
@@ -61,5 +61,5 @@ export const pixiTextScene: SceneBuilder = (app) => {
     skewText.anchor.set(0.5);
     skewText.x = 300;
     skewText.y = 480;
-    app.stage.addChild(skewText);
+    ctx.root.addChild(skewText);
 };
