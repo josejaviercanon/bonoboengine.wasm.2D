@@ -120,23 +120,22 @@ The full PixiJS v8 stack is declared in `src/Game.UI/package.json`: `pixi.js`, `
 
 | Capability | Status |
 | --- | --- |
-| Arch ECS sim (60 Hz, systems, batched signal, SSR snapshot, SSE stream) | Implemented |
+| Arch ECS sim (60 Hz, systems, batched signal) | Implemented |
 | PixiJS bootstrap (`initGame`/`renderText`/`renderScene`, scenes, stats) | Implemented |
-| Static-SSR web host + SSE delta bridge (`/api/{ecs,snake,tetris,breakout,asteroids}/stream`) | Implemented |
-| Games: Snake, Tetris, Breakout, Asteroids, Pacman, Racer (ECS authority + POST input + HUD) | Implemented |
+| Games: Snake, Tetris, Breakout, Asteroids, Pacman, Racer (ECS authority + input + HUD) | Implemented |
 | Box2D.NET authoritative physics in ECS loop (Asteroids: bodies, contact events, wrap) | Implemented (ADR-002) |
 | Asteroids presentation layer: interpolation + box2d3-wasm debris + particle-emitter + GlowFilter | Implemented (ADR-003/005) |
 | Snake presentation layer: interpolation + authoritative red-food fall + immediate replacement food | Implemented (ADR-003/006) |
 | Render transport seam: `IRenderTransport<TSignal>` injected into all sims, `ServerRenderTransport` default, `SINGLE_PLAYER_LOCAL` build switches in `Game.Engine.csproj` | Implemented (ADR-007 Phase 1) |
 | Single-player-local default: `SINGLE_PLAYER_LOCAL` + `local-buffer` are the default builds; `fetch` POST exists only in the `--mode web` / `npm run build:web` multiplayer branch; scenes route all commands through `SignalStream.postCommand` (no raw `fetch` in scene code) | Implemented (ADR-007) |
 | TS `SnapshotBuffer.ingestFromBuffer` (typed-array ingest, same interpolation math) — consumed by all seven scene buffer listeners (tetris, snake, pacman, breakout, asteroids, ecs, racer) | Implemented (ADR-007 Phase 3) |
-| `Game.Wasm` co-located host: `DirectRenderTransport` (signal → `byte[]` → `Uint8Array`/`Float32Array` via optimized byte-array JS interop, layouts in `SignalBuffer.cs` ↔ `bufferLayout.ts`), lazy `SimHost` (per-game creation on page render / `/api/{game}/connect`), `CommandJsonContext` source-gen JSON, Release AOT flags | Implemented (ADR-007 Phase 2) |
-| `IExampleSims` seam — `ExampleHost` accesses sims through a host-supplied accessor (lazy in `Game.Wasm`, singleton adapter in `Game.Web`) | Implemented (ADR-007 Phase 2) |
-| `Game.Wasm` Release AOT publish — `RunAOTCompilation` + `WasmStripIL`, vendored Arch generic templates capped at arity 15 (`Helpers.ttinclude` `Amount=16`), verified 61 FPS under `dotnet-serve --fallback-file index.html`; source-gen `CommandJsonContext` (AOT-safe, no reflection) | Implemented (ADR-007 Phase 3) |
-| Interop hygiene — `App.razor` disposes `DotNetObjectReference`; `pixi-bundle-ready` event handshake (poll reduced to a 10 s fallback); `_commandRef`/`_provider` cleared on unload | Implemented (ADR-007 Phase 4) |
+| `Game.Wasm` co-located host: `PinnedRenderBuffer` + `DirectRenderTransport` (zero-copy: pinned `GCHandle` → `[JSImport] notifyRender(ptr, count)` → JS reads `Float32Array` over WASM heap), typed `[JSExport]` commands, `WasmInterop` bridge module (`wasm-interop.js`). Replaces Phase 2 byte[]–copy + DotNetObjectReference JSON path | Implemented (ADR-007 Phase 3 / ADR-008) |
+| `IExampleSims` seam — `SimHost` provides lazy sims in `Game.Wasm` | Implemented (ADR-007 Phase 2) |
+| `Game.Wasm` Release AOT publish — `RunAOTCompilation` + `WasmStripIL`, vendored Arch generic templates capped at arity 15 (`Helpers.ttinclude` `Amount=16`), verified 61 FPS under `dotnet-serve --fallback-file index.html`; `[JSImport]/[JSExport]` source-gen interop (AOT-safe, no reflection) | Implemented (ADR-007 Phase 3) |
+| Interop hygiene — `WasmInterop.Initialize` in `Program.cs`, `pixi-bundle-ready` event handshake, no `DotNetObjectReference`/`CommandJsonContext` | Implemented (ADR-008) |
 | Docs — `topology.md`, `codebase-truth.md`, ADR-007, `README.md` (AOT publish + verify instructions) | Implemented (ADR-007 Phase 5) |
 | `SpriteState` -> `TransformSnapshot` (velocity/rotation/tick) | Partial — snake/pacman/asteroids/racer entity states already carry temporal data (ADR-003); `SpriteState` (ecs/tetris/breakout) still lacks it |
-| Shared-memory `HEAPF32` zero-copy transfer | Target |
+| Shared-memory `HEAPF32` zero-copy transfer — `PinnedRenderBuffer` + `[JSImport] notifyRender` over WASM heap | Implemented (ADR-008) |
 | Box2D.NET for other games (Snake/Tetris/Breakout) | Target |
 | box2d3-wasm presentation physics (entity-selective, other games) | Target |
 | glTF importer + skeletal ECS components | Target |

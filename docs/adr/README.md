@@ -33,3 +33,5 @@ Architecture decisions for the Bonobo Engine are recorded here as ADRs, one file
 
 ## Records
 
+- [`ADR-008: Zero-Copy Shared Memory Interop Pipeline`](ADR-008.md)
+

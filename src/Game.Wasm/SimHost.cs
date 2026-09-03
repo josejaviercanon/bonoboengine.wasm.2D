@@ -5,26 +5,16 @@ using Game.Engine.ECS.Pacman;
 using Game.Engine.ECS.Racer;
 using Game.Engine.ECS.Snake;
 using Game.Engine.ECS.Tetris;
+using System.Runtime.Versioning;
 using Game.Examples;
 
 namespace Game.Wasm;
 
-/// <summary>
-///     Lazily creates and caches the co-located simulations (ADR-007 Phase 2)
-///     and implements <see cref="IExampleSims"/> for the example pages. Each sim
-///     is constructed on first use — property access from the rendered example
-///     page, a <c>/api/{game}/connect</c> command posted by the matching scene,
-///     or any game command — and is wired to a
-///     <see cref="DirectRenderTransport{TSignal}"/> that delivers float32 signal
-///     buffers to the PixiJS scene. Unvisited games never spawn their 60 Hz
-///     timers, so the WASM main thread only pays for the scenes the player
-///     actually opens (this was the 60→2 FPS collapse: all seven sims ticking
-///     in the interpreter from boot).
-/// </summary>
+[SupportedOSPlatform("browser")]
 public sealed class SimHost : IExampleSims, IDisposable
 {
-    private readonly WasmRenderBridge _bridge;
     private readonly object _sync = new();
+    private bool _paused;
 
     private EcsSimulation? _ecs;
     private TetrisSimulation? _tetris;
@@ -34,64 +24,90 @@ public sealed class SimHost : IExampleSims, IDisposable
     private PacmanSimulation? _pacman;
     private RacerSimulation? _racer;
 
-    public SimHost(WasmRenderBridge bridge)
+    private static DirectRenderTransport<T> CreateTransport<T>(
+        string eventName, Func<T, int> floatLength, Action<T, Span<float>> encode, int bufferCapacity)
     {
-        _bridge = bridge;
+        var buffer = new PinnedRenderBuffer(bufferCapacity);
+        buffer.OnNotify = name => WasmInterop.Notify(name);
+        WasmInterop.RegisterBuffer(eventName, buffer);
+        return new DirectRenderTransport<T>(eventName, floatLength, encode, buffer);
     }
 
     public EcsSimulation Ecs => _ecs ??= new EcsSimulation(
-        _bridge.Create<EcsRenderSignal>("sprite-move", SignalBufferEncoders.FloatLength, SignalBufferEncoders.Encode));
+        CreateTransport<EcsRenderSignal>("sprite-move", SignalBufferEncoders.FloatLength, SignalBufferEncoders.Encode, 128));
 
     public TetrisSimulation Tetris => _tetris ??= new TetrisSimulation(
         new Random(),
-        _bridge.Create<TetrisRenderSignal>("tetris-move", SignalBufferEncoders.FloatLength, SignalBufferEncoders.Encode));
+        CreateTransport<TetrisRenderSignal>("tetris-move", SignalBufferEncoders.FloatLength, SignalBufferEncoders.Encode, 1024));
 
     public SnakeSimulation Snake => _snake ??= new SnakeSimulation(
-        renderTransport: _bridge.Create<SnakeRenderSignal>("snake-move", SignalBufferEncoders.FloatLength, SignalBufferEncoders.Encode));
+        renderTransport: CreateTransport<SnakeRenderSignal>("snake-move", SignalBufferEncoders.FloatLength, SignalBufferEncoders.Encode, 4096));
 
     public BreakoutSimulation Breakout => _breakout ??= new BreakoutSimulation(
         new Random(), startTimer: true,
-        _bridge.Create<BreakoutRenderSignal>("breakout-move", SignalBufferEncoders.FloatLength, SignalBufferEncoders.Encode));
+        CreateTransport<BreakoutRenderSignal>("breakout-move", SignalBufferEncoders.FloatLength, SignalBufferEncoders.Encode, 1024));
 
     public AsteroidsSimulation Asteroids => _asteroids ??= new AsteroidsSimulation(
         new Random(), startTimer: true,
-        _bridge.Create<AsteroidsRenderSignal>("asteroids-move", SignalBufferEncoders.FloatLength, SignalBufferEncoders.Encode));
+        CreateTransport<AsteroidsRenderSignal>("asteroids-move", SignalBufferEncoders.FloatLength, SignalBufferEncoders.Encode, 1024));
 
     public PacmanSimulation Pacman => _pacman ??= new PacmanSimulation(
-        renderTransport: _bridge.Create<PacmanRenderSignal>("pacman-move", SignalBufferEncoders.FloatLength, SignalBufferEncoders.Encode));
+        renderTransport: CreateTransport<PacmanRenderSignal>("pacman-move", SignalBufferEncoders.FloatLength, SignalBufferEncoders.Encode, 8192));
 
     public RacerSimulation Racer => _racer ??= new RacerSimulation(
         new Random(), startTimer: true,
-        _bridge.Create<RacerRenderSignal>("racer-move", SignalBufferEncoders.FloatLength, SignalBufferEncoders.Encode));
+        CreateTransport<RacerRenderSignal>("racer-move", SignalBufferEncoders.FloatLength, SignalBufferEncoders.Encode, 512));
 
-    /// <summary>Creates the named simulation if not running ("connect" command).</summary>
+    public void SetPaused(bool paused)
+    {
+        _paused = paused;
+    }
+
     public void Connect(string game)
     {
         lock (_sync)
         {
             switch (game)
             {
-                case "ecs":
-                    _ = Ecs;
-                    break;
-                case "tetris":
-                    _ = Tetris;
-                    break;
-                case "snake":
-                    _ = Snake;
-                    break;
-                case "breakout":
-                    _ = Breakout;
-                    break;
-                case "asteroids":
-                    _ = Asteroids;
-                    break;
-                case "pacman":
-                    _ = Pacman;
-                    break;
-                case "racer":
-                    _ = Racer;
-                    break;
+                case "ecs": _ = Ecs; break;
+                case "tetris": _ = Tetris; break;
+                case "snake": _ = Snake; break;
+                case "breakout": _ = Breakout; break;
+                case "asteroids": _ = Asteroids; break;
+                case "pacman": _ = Pacman; break;
+                case "racer": _ = Racer; break;
+            }
+        }
+    }
+
+    public void Start(string game)
+    {
+        lock (_sync)
+        {
+            switch (game)
+            {
+                case "tetris": Tetris.Start(); break;
+                case "snake": Snake.Start(); break;
+                case "breakout": Breakout.Start(); break;
+                case "asteroids": Asteroids.Start(); break;
+                case "pacman": Pacman.Start(); break;
+                case "racer": Racer.Resume(); break;
+            }
+        }
+    }
+
+    public void Restart(string game)
+    {
+        lock (_sync)
+        {
+            switch (game)
+            {
+                case "tetris": Tetris.Reset(); break;
+                case "snake": Snake.Reset(); break;
+                case "breakout": Breakout.Reset(); break;
+                case "asteroids": Asteroids.Reset(); break;
+                case "pacman": Pacman.Reset(); break;
+                case "racer": Racer.Reset(); break;
             }
         }
     }

@@ -133,8 +133,10 @@ public static void MainLoopTick(float deltaTime)
 - `src/Game.Engine` is a plain C# class library. Keep engine logic independent of UI and platform code. It hosts the Arch ECS (`Game.Engine.ECS`: components, `[Query]` systems, `EcsSimulation`) via vendored `src/Arch` + `src/Arch.Generators` (analyzer only).
 - `src/Game.UI` is the shared Razor Class Library. It references `Game.Engine` and owns shared Razor components plus PixiJS assets.
 - `src/Game.Tests` is the xUnit v3 test project (determinism self-checks, ECS unit tests, snapshot shape). `src/Game.Tests.Aot` is the TUnit test project (AOT/trim pattern checks over the `Game.Engine` closure). Both are in the solution and run under the Microsoft.Testing.Platform runner opted in via root `global.json` — do not delete that file or `dotnet test` misbehaves on .NET 10.
-- `src/Game.Tests.UI` is the Node/TypeScript Playwright E2E suite. Not a `.csproj` — run from its folder via npm. Uses installed Chrome (`channel: 'chrome'`); config boots the host on port 5902. See `docs/testing-ui-E2E/index.md`.
-- `src/Game.Maui` is the .NET MAUI Blazor Hybrid host. It targets Android by default, plus iOS, Mac Catalyst, and Windows when supported by the OS/workloads. **Currently commented out of `bonoboWebGame.slnx` (temporary web-only solution build for speed)** — build it directly with `dotnet build src/Game.Maui/Game.Maui.csproj` when doing native app work.
+- `src/Game.Tests.UI` is the Node/TypeScript Playwright E2E suite. Not a `.csproj` — run from its folder via npm. Uses installed Chrome (`channel: 'chrome'`). Config and host setup: see `docs/testing-ui-E2E/index.md`.
+- `src/Game.Wasm` is the Blazor WebAssembly host (co-located single-player, ADR-007 Phase 3 zero-copy). Hosts simulations lazily per visited scene. Implements the `[JSImport]`/`[JSExport]` interop bridge with pinned shared memory buffer (`PinnedRenderBuffer`), typed command exports via `WasmInterop`, and the PixiJS provider (wasm-interop.js module).
+- `src/Game.Examples` is the example catalog (`ExamplesCatalog.cs`) and `IExampleSims` seam. Referenced by `Game.Wasm`.
+
 - `src/Box2D.NET` is a **vendored** C# physics library, **referenced** by `Game.Engine.csproj` as the authoritative physics world (ADR-002). `src/BrainAI` (pathfinding/AI) remains vendored but **unreferenced** — treat as a target dependency, not active. `src/Temp/` holds upstream samples/demos — not part of the build/solution.
 - The PixiJS v8 ecosystem (`pixi.js`, `@pixi/ui`, `@pixi/sound`, `@pixi/tilemap`, `pixi-viewport`, `pixi-filters`, `@spd789562/particle-emitter`) is declared in `src/Game.UI/package.json`. **box2d3-wasm (Box2D v3 WASM)** is optional presentation-physics only (ADR-002).
 
@@ -194,7 +196,7 @@ Run Playwright E2E from `src/Game.Tests.UI` (Node project; needs `npm ci` first)
 
 ```powershell
 npm ci
-npx playwright test        # boots Game.Web on port 5902, uses installed Chrome (channel: 'chrome')
+npx playwright test        # boots Game.Wasm via dotnet run on port 5902, uses installed Chrome (channel: 'chrome')
 npm run typecheck
 ```
 
@@ -209,7 +211,7 @@ MAUI builds require .NET MAUI workloads. Platform-specific target frameworks may
 ## Verification Notes
 
 - Test projects: `Game.Tests` (xUnit v3), `Game.Tests.Aot` (TUnit), `Game.Tests.UI` (Playwright, Node-only, not in the solution). Full guide: `docs/testing-ui-E2E/index.md`. `Game.Maui` is temporarily commented out of the solution (web-only builds for speed).
-- After touching `Game.UI` RCL assets, kill any running `Game.Web.exe` before rebuilding. Static-asset 500s (`_content/Game.UI/dist/*`) = stale/raced `bin`/`obj` static-web-asset output; fix by killing the host and rebuilding (delete `src/Game.Web/bin`+`obj` if it persists).
+- After touching `Game.UI` RCL assets, kill any running `Game.Wasm.exe` before rebuilding. Static-asset 500s (`_content/Game.UI/dist/*`) = stale/raced `bin`/`obj` static-web-asset output; fix by killing the host and rebuilding (delete `src/Game.Wasm/bin`+`obj` if it persists).
 - `bin/`, `obj/`, `node_modules/`, and other build output are ignored. Do not commit them.
 - Trust `.csproj`, `.slnx`, `package.json`, and executable build output over setup prose in `README.md`.
 - `docs/index.md` describe architecture; `docs/ai-agents/codebase-truth.md` holds verified API facts; record significant decisions in `docs/adr/`.

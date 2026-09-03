@@ -1,28 +1,12 @@
 @using Microsoft.JSInterop
 @inject IJSRuntime JS
-@inject SimHost Sims
-@implements IDisposable
 
 <Routes />
 
 @code {
-    private DotNetObjectReference<CommandHandler>? _commandRef;
-
     protected override void OnAfterRender(bool firstRender)
     {
         if (!firstRender) return;
-
-        // Register the command handler so scenes can call postCommand → C# sims.
-        // The sims themselves are created lazily by the SimHost on the scene's
-        // /api/{game}/connect handshake; render signals flow back through
-        // DirectRenderTransport → onRenderSignalBuffer (float32 buffers, no JSON).
-        _commandRef = DotNetObjectReference.Create(new CommandHandler(Sims));
-        ((IJSInProcessRuntime)JS).InvokeVoid("registerGameWasmProvider", _commandRef);
-    }
-
-    public void Dispose()
-    {
-        _commandRef?.Dispose();
-        _commandRef = null;
+        // Interop is initialized via WasmInterop in Program.cs (JSHost.ImportAsync).
     }
 }

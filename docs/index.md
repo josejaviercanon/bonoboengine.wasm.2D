@@ -67,11 +67,11 @@ PIXIJS v8                       sprites, containers, animation, camera, particle
 
 - **Never** move simulation back-and-forth through JS interop every frame. Cross the boundary only via batched render snapshots.
 - **Domain ownership (ADR-006):** C# owns game rules, collision, gravity, character controllers, deterministic networking. PixiJS owns interpolation, sprite transforms/animation, camera smoothing, secondary motion (cloth/ragdoll), particle physics.
-- **Bridge status:** current = SSE `event: sprite-move` with batched `SpriteState[]` JSON (`/api/ecs/stream`); target = pinned shared memory + `HEAPF32` `Float32Array` view + client interpolation `P_render = P_prev + (P_curr − P_prev) × α` (ADR-003). Interpolation/box2d3-wasm-coupling implementation guide (math, per-entity `InterpState` buffer, kinematic mirroring): `docs/architecture/render-interpolation.md`.
+- **Bridge status:** zero-copy shared memory pipeline implemented (ADR-008): C# writes transform snapshots into a pinned `GCHandle` buffer → JS reads `Float32Array` over WASM heap via `[JSImport] notifyRender`. Client interpolation: `P_render = P_prev + (P_curr − P_prev) × α` (ADR-003). Interpolation/box2d3-wasm-coupling implementation guide (math, per-entity `InterpState` buffer, kinematic mirroring): `docs/architecture/render-interpolation.md`.
 - **Physics:** Box2D.NET = authoritative (C# ECS loop, vendored at `src/Box2D.NET`, wired into `Game.Engine` and used by `AsteroidsSimulation`); box2d3-wasm (Box2D v3 WASM) = optional presentation physics, entity-selective, used by the asteroids debris field (ADR-002, ADR-005).
 - **Skeletal animation:** glTF (`.glb`) is the asset contract, not the ECS architecture — two decoupled pipelines (authoring: AI+Blender→`.glb`; runtime: `.glb`→importer→ECS→PixiJS); the animation state machine belongs to the ECS (ADR-004).
 
-Full matrices (ecosystem integration, implementation status, packages) live in `docs/architecture/topology.md`. Decisions: `docs/adr/` (ADR-001…ADR-007).
+Full matrices (ecosystem integration, implementation status, packages) live in `docs/architecture/topology.md`. Decisions: `docs/adr/` (ADR-001…ADR-008).
 
 **Single-player local is the default build (ADR-007).** `SINGLE_PLAYER_LOCAL` is the default C# compilation constant; `npm run build` produces a local-buffer bundle (`__RENDER_SOURCE__='local-buffer'`) with zero HTTP client code. Multiplayer is opt-in: build with `npm run build:web` + `/p:IsMultiplayer=true`.
 
@@ -201,7 +201,7 @@ source.addEventListener('sprite-move', (event) => {
 source.onerror = () => source.close();
 ```
 
-This is the interim SSE/JSON bridge; the target is batched `TransformSnapshot` + shared-memory `HEAPF32` zero-copy + client interpolation (ADR-003).
+This is the deprecated SSE/JSON bridge (removed). The zero-copy shared memory pipeline (ADR-008) now replaces it: batched `TransformSnapshot` → pinned `GCHandle` buffer → `Float32Array` over WASM heap → client interpolation (ADR-003).
 
 ## 🚀 Future-Proofing for Authoritative Multiplayer
 
