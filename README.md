@@ -1,6 +1,6 @@
 # Bonobo blazorwasm pixijs for games
 
-.NET MAUI Blazor Hybrid monorepo: a pure C# game engine (`Game.Engine`), a shared Razor Class Library (`Game.UI`), a Blazor Web App host (`Game.Web`), a .NET MAUI Hybrid client (`Game.Maui`), and a TypeScript-driven PixiJS build managed by Vite and Tailwind CLI.
+C# browser-wasm monorepo: a pure C# game engine (`Game.Engine`), a Roslyn analyzer + source generator project (`Game.Engine.Generators`), a shared class library owning the PixiJS frontend (`Game.UI`), a non-Blazor browser-wasm host (`Game.Wasm`), an example catalog (`Game.Examples`), and a TypeScript-driven PixiJS build managed by Vite and Tailwind CLI.
 
 Start with this project mainly because current monogame at 2026 dont have export to web option. Note that for real time games, authoritative ECS in server is not the best option by the http event process for each render update, so added a compilation conditional for single player games.
 
@@ -77,7 +77,7 @@ PIXIJS v8                       sprites, containers, animation, camera, particle
 - **Physics:** Box2D.NET = authoritative (C# ECS loop, vendored at `src/Box2D.NET`, wired into `Game.Engine` and used by `AsteroidsSimulation`); box2d3-wasm (Box2D v3 WASM) = optional presentation physics, entity-selective, used by the asteroids debris field (ADR-002, ADR-005).
 - **Skeletal animation:** glTF (`.glb`) is the asset contract, not the ECS architecture — two decoupled pipelines (authoring: AI+Blender→`.glb`; runtime: `.glb`→importer→ECS→PixiJS); the animation state machine belongs to the ECS (ADR-004).
 
-Full matrices (ecosystem integration, implementation status, packages) live in `docs/architecture/topology.md`. Decisions: `docs/adr/` (ADR-001…ADR-007).
+Full matrices (ecosystem integration, implementation status, packages) live in `docs/architecture/topology.md`. Decisions: `docs/adr/` (ADR-001…ADR-009).
 
 **Single-player local is the default build (ADR-007).** `SINGLE_PLAYER_LOCAL` is the default C# compilation constant; `npm run build` produces a local-buffer bundle (`__RENDER_SOURCE__='local-buffer'`) with zero HTTP client code. Multiplayer is opt-in: build with `npm run build:web` + `/p:IsMultiplayer=true`.
 
@@ -108,7 +108,12 @@ public sealed class EcsSimulation : IDisposable
 
 No per-entity `EntityMoved` events and no `IJSRuntime` calls from the engine: state leaves the simulation only as a batched render signal (the "Performance Gold Rule"; ADR-003 refines this toward `TransformSnapshot` + shared-memory).
 
-### Step 2: The Static-SSR Host + SSE Bridge
+### Step 2: The Static-SSR Host + SSE Bridge (legacy blueprint — superseded by ADR-008/009)
+
+> The following SSR + SSE + Razor host is the **original** MVP blueprint. It was
+> replaced by the non-Blazor browser-wasm host (`Game.Wasm`, `[JSImport]`/`[JSExport]`,
+> pinned shared-memory buffer) in ADR-008/009. `Game.Web` and the Razor host no
+> longer exist in the repo; kept here only for historical context.
 
 `Game.Web` is **static SSR only** (no Interactive Server, no SignalR circuit). It registers `EcsSimulation` as a singleton, maps the Razor components (discovering shared RCL routes via `AddAdditionalAssemblies`), and exposes one SSE endpoint that streams the batched render signal. No `IJSRuntime` on the web host.
 
@@ -207,7 +212,10 @@ source.addEventListener('sprite-move', (event) => {
 source.onerror = () => source.close();
 ```
 
-This is the interim SSE/JSON bridge; the target is batched `TransformSnapshot` + shared-memory `HEAPF32` zero-copy + client interpolation (ADR-003).
+This is the deprecated SSE/JSON bridge (removed in ADR-008). The zero-copy
+shared-memory pipeline replaces it: batched float32 snapshots → pinned
+`GCHandle` buffer → `[JSImport]("notifyRender")` → `Float32Array` over the WASM
+heap → client interpolation (ADR-003/008).
 
 ## 🚀 Future-Proofing for Authoritative Multiplayer
 
@@ -270,20 +278,24 @@ When generating code, refactoring, or adding features in this repository, AI cod
 ```
 bonoboWebGame.slnx          # .NET solution (XML solution format)
 src/
-├── Game.Engine/            # Pure C# class library (Core Simulation)
-├── Game.UI/                # Razor Class Library (shared HUD views + components)
-│   ├── wwwroot/dist/       # Output for Vite and Tailwind bundles (generated — never hand-edit)
+├── Game.Engine/            # Pure C# class library (authoritative simulation: Arch ECS + Box2D.NET)
+├── Game.Engine.Generators/ # Roslyn analyzer + source generator (zero-copy float32 layout guardrails)
+├── Game.UI/                # Shared class library (PixiJS frontend source + static assets)
+│   ├── wwwroot/dist/       # Vite + Tailwind output (generated — never hand-edit)
 │   └── Frontend/           # PixiJS TypeScript engine + Tailwind CSS entry
-├── Game.Maui/              # Native app shell wrapper (Blazor Hybrid)
-├── Game.Wasm/              # Blazor Wasm web assembly App host
-└── Game.Web/               # Blazor Web App host
+├── Game.Examples/          # Example catalog + IExampleSims seam
+├── Game.Wasm/              # browser-wasm host (non-Blazor; [JSImport]/[JSExport] interop)
+├── Game.Tests/             # xUnit v3 tests (determinism, ECS, snapshot shape)
+├── Game.Tests.Aot/         # TUnit AOT/trim pattern tests
+├── Game.Tests.UI/          # Playwright E2E suite (Node — not in the .NET solution)
+├── Box2D.NET/              # vendored C# physics library (authoritative, ADR-002)
+├── BrainAI/                # vendored pathfinding/AI (unreferenced — target dependency)
+└── Temp/                   # upstream samples/demos (not part of the build/solution)
 docs/
 ├── index.md                # Architecture source of truth
-├── ai-agents/codebase-truth.md   # Verified API facts
 ├── adr/                    # Architecture Decision Records
-├── 2d-games/               # Complete 2D engine knowledge base (MonoGame-flavored)
+├── 2d-games/               # Complete 2D engine knowledge base
 └── game-development/       # Curated engine-agnostic gamedev knowledge base
-memory-bank/                # Agent memory bank (project brief, context, patterns, progress)
 AGENTS.md                   # Agent build/workflow rules
 ```
 
@@ -293,13 +305,14 @@ AGENTS.md                   # Agent build/workflow rules
 
 - .NET 10 SDK
 - Node.js (LTS) — for Vite and Tailwind CLI
-- MAUI workloads (only needed for `Game.Maui` builds): `dotnet workload install maui`
+- MAUI workloads (only needed for `Game.Maui` builds — currently commented out of the solution)
 
 ### How to Build and Run a Single-Player Game (Default)
 
 Single-player is the **default** build mode. The C# simulation runs in-process
-in the browser via Blazor WebAssembly (`Game.Wasm`). No HTTP, no SSE, no server —
-zero network overhead. `SINGLE_PLAYER_LOCAL` is defined automatically.
+in the browser via the non-Blazor browser-wasm host (`Game.Wasm`,
+`Microsoft.NET.Sdk.WebAssembly`). No HTTP, no SSE, no server — zero network
+overhead. `SINGLE_PLAYER_LOCAL` is defined automatically.
 
 ```powershell
 # 1. Build frontend assets (local-buffer bundle — default Vite mode)
@@ -308,7 +321,7 @@ npm ci
 npm run build
 cd ../..
 
-# 2. Build and run the Blazor WASM host
+# 2. Build and run the browser-wasm host
 dotnet watch --project src/Game.Wasm
 ```
 
@@ -318,10 +331,14 @@ the game scene. All input (`postCommand`) routes directly to the in-process
 sim via the `LocalBufferProvider` — no `fetch` POST, no EventSource.
 
 Render signals travel as float32 buffers: `DirectRenderTransport` encodes each
-batched signal into the canonical layout (`SignalBuffer.cs` ↔ `bufferLayout.ts`)
-and delivers it to `onRenderSignalBuffer` through Blazor's optimized byte-array
-JS interop — no JSON, no reflection. Simulations are created lazily per visited
-scene (`SimHost`), so only the game you open pays the 60 Hz tick cost.
+batched signal into the canonical layout (`SignalBuffer.cs` ↔ `bufferLayout.ts`),
+writes it into a pinned `GCHandle` `float[]`, and notifies JS via
+`[JSImport]("notifyRender")` — JS reads a `Float32Array` view over the WASM heap.
+Zero copies, no JSON, no reflection. The C#↔TS layout is kept in lockstep by
+`src/Game.Engine.Generators` (analyzer + source generator + boot-time assert —
+see `docs/architecture/topology.md` §Zero-Copy Layout Guardrails). Simulations
+are created lazily per visited scene (`SimHost`), so only the game you open pays
+the 60 Hz tick cost.
 
 For best raw sim throughput, publish with AOT (needs
 `dotnet workload install wasm-tools`; dev `dotnet watch` stays interpreted):
@@ -342,11 +359,14 @@ dotnet-serve -p 63008 --fallback-file index.html -d "src/Game.Wasm/bin/Release/n
 > 15 (`Helpers.ttinclude` `Amount = 16`); mono's WASM AOT compiler crashes on
 > arities ≥ 16. See ADR-007 §Implementation Status.
 
-### How to Build and Run a Multiplayer Game (Server-Authoritative)
+### How to Build a Multiplayer (Server-Authoritative) Bundle
 
-Multiplayer mode runs the C# simulation on the server (`Game.Web`) and streams
-render signals to the browser over SSE. Input is sent via `fetch` POST and
-validated server-side. Requires explicit flags on both sides.
+The SSE/multiplayer transport is retained as an opt-in branch (ADR-007), but the
+dedicated `Game.Web` SSR host was removed in ADR-009 — only the co-located
+`Game.Wasm` browser-wasm host ships in this repo. The multiplayer branch still
+compiles the `sse` frontend transport (`fetch` POST + `EventSource`) and the
+server-authoritative `ServerRenderTransport`, for use against a separately hosted
+ASP.NET Core server:
 
 ```powershell
 # 1. Build frontend assets (SSE/multiplayer bundle)
@@ -355,20 +375,12 @@ npm ci
 npm run build:web    # Vite --mode web → __RENDER_SOURCE__='sse'
 cd ../..
 
-# 2. Build and run the static-SSR web host
-dotnet watch --project src/Game.Web
-```
-
-Open the printed URL. The server streams batched render signals over
-`text/event-stream` (SSE) and accepts player input via HTTP POST endpoints
-(`/api/{game}/input`, `/api/{game}/start`, `/api/{game}/restart`).
-
-For a multiplayer-only .NET build that skips the `SINGLE_PLAYER_LOCAL`
-compilation constant:
-
-```powershell
+# 2. Build the engine with the server-authoritative constants (skips SINGLE_PLAYER_LOCAL)
 dotnet build bonoboWebGame.slnx /p:IsMultiplayer=true /p:IsEcsServerSide=true
 ```
+
+The single-player local-buffer path (pinned `GCHandle` + `[JSImport] notifyRender`)
+remains the default and the only fully built-out host in this repository.
 
 ### Build & Test
 
@@ -381,7 +393,7 @@ dotnet test          # Game.Tests (xUnit v3) + Game.Tests.Aot (TUnit); Playwrigh
 
 ---
 
-Ported Game as expamples using Blazor Wasm ECS and Pixijs V8 render:
+Ported games as examples using the C# browser-wasm ECS engine and PixiJS v8 render:
 
 |Done | Order | Game                    | What You'll Learn                                     |
 |---- | ----- | ----------------------- | ----------------------------------------------------- |

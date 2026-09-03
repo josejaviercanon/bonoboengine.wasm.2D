@@ -1,10 +1,10 @@
-# Architecture Topology — C# ECS Engine in .NET MAUI Hybrid / Blazor WebAssembly
+# Architecture Topology — C# ECS Engine in browser-wasm Native-AOT Host (PixiJS v8)
 
 > Detailed companion to `docs/index.md` (the architecture source of truth). Decisions live in `docs/adr/`; verified facts in `docs/ai-agents/codebase-truth.md`. This file marks **Implemented** vs **Target** explicitly. When code and prose disagree, verified files win.
 
 ## The Dual-Runtime State Machine
 
-Integrating PixiJS v8 into .NET MAUI Hybrid / Blazor WASM shifts execution into a hybrid dual-runtime:
+Integrating PixiJS v8 into a C# browser-wasm Native-AOT host shifts execution into a hybrid dual-runtime:
 
 1. **C# WASM / Mono Runtime Layer** — pure game logic, ECS entity lifecycle, system updates, spatial partitioning, state machines, physics.
 2. **JS / WebGPU / WebGL2 Presentation Layer** — PixiJS v8, hardware-accelerated shaders, audio contexts, skeletal mesh rendering.
@@ -34,24 +34,27 @@ PixiJS v8 Presentation Layer (WebGPU / WebGL2 pipelines)
 
 Rule: never move simulation back-and-forth through JS interop every frame. Keep any JS physics world resident; feed it snapshots at discrete boundaries. Client-side interpolation and box2d3-wasm kinematic-coupling implementation guide: `docs/architecture/render-interpolation.md`.
 
-## The WASM->JS Bridge (ADR-003)
+## The WASM->JS Bridge (ADR-003, ADR-008)
 
 **Problem:** per-entity `IJSRuntime.InvokeVoidAsync` at 60 FPS saturates interop; simulation (60 Hz) and display (144 Hz) differ in time domain -> jitter.
 
-**Current (interim):** `GET /api/ecs/stream` SSE pushes `event: sprite-move` with batched `SpriteState[]` JSON (`Id, X, Y, R, G, B`) at a 1 s throttle. Snake uses a game-specific `SnakeSpriteState` with previous/current positions, velocity, kind, and explicit `StepMs`; its deadly-food fall remains C# authoritative.
+**Implemented (ADR-008):** zero-copy shared-memory pipeline. The simulation writes each batched render snapshot into a pinned `float[]` (`GCHandle.Alloc(..., Pinned)`), passes the raw pointer to JS via `[JSImport]("notifyRender")`, and JS reads `new Float32Array(heap.buffer, ptr, count)` over the WASM heap — no JSON, no byte[] copy, no `IJSRuntime`. Client interpolates: `P_render = P_prev + (P_curr - P_prev) * alpha`, `alpha = (T_now - T_last_tick) / T_tick`.
 
-**Target:** the boundary = "the simulation produced a render snapshot", carrying kinematic data:
+**Deprecated:** `GET /api/ecs/stream` SSE pushing `event: sprite-move` with batched `SpriteState[]` JSON (`Id, X, Y, R, G, B`) — the legacy transport, superseded by the pinned-buffer path (retained only in the opt-in multiplayer `--mode web` / `npm run build:web` build).
 
-```csharp
-public readonly record struct TransformSnapshot(
-    int EntityId, float X, float Y, float Rotation,
-    float VelocityX, float VelocityY, float AngularVelocity, long Tick);
+The canonical float32 layout lives in `Game.Engine.ECS.SignalBuffer.cs` (`SignalBuffer` + `SignalBufferLayout` + `SignalBufferEncoders`) and its TypeScript mirror `src/Game.UI/Frontend/scenes/bufferLayout.ts` (+ per-scene `EntityDecoder`s). The C# and TS halves are kept in lockstep by `src/Game.Engine.Generators` — see "Zero-Copy Layout Guardrails" below.
 
-[StructLayout(LayoutKind.Sequential, Pack = 4)]
-public struct RenderTransform { public float X, Y, Rotation, ScaleX, ScaleY; }
-```
+## Zero-Copy Layout Guardrails
 
-Pin the C# block (`GCHandle.Alloc(..., Pinned)` / `Marshal.AllocHGlobal`), pass `IntPtr` to JS, view as `new Float32Array(wasmModule.HEAPF32.buffer, ptr, entityCount * Stride)`; the PixiJS ticker reads the matrix buffer in a single O(1) interop tick. Client interpolates: `P_render = P_prev + (P_curr - P_prev) * alpha`, `alpha = (T_now - T_last_tick) / T_tick`.
+The C# float32 layout and the TypeScript decoders must never drift. `src/Game.Engine.Generators` (Roslyn analyzer + source generator) enforces this three ways:
+
+| Vector | Phase | Mechanism |
+| --- | --- | --- |
+| Stride / type validation | Compile-time (IDE + MSBuild) | `LayoutAlignmentAnalyzer` — `BNOBO001` errors when a `[TypeScriptExport(n)]` struct's computed float-stride ≠ `n`; `BNOBO002` errors on field types that cannot float32-encode. |
+| Boot-time static assert | Load-time (WASM boot) | `TypeScriptInterfaceGenerator` emits `GeneratedSignalLayout` + a `[ModuleInitializer]` that asserts each computed stride equals the matching `SignalBufferLayout` constant. |
+| TypeScript half | Build-time | The same generator writes `src/Game.UI/Frontend/scenes/generated/signalLayout.ts` (interfaces + stride constants); `bufferLayout.ts` imports the generated `BUFFER_HEADER_LENGTH`. |
+
+Every sprite-state record struct carries the marker: `SpriteState` (stride 6), `SnakeSpriteState` (11), `PacmanSpriteState` (16), `BreakoutSpriteState` (8), `AsteroidsSpriteState` (11), `RacerCarState` (6).
 
 ## Physics Architecture (ADR-002, ADR-005)
 
@@ -101,7 +104,7 @@ Animation state machine belongs to the ECS, not glTF. See `docs/2d-skeletal-anim
 
 | Component | Runtime | State source of truth | Interop | Role |
 | --- | --- | --- | --- | --- |
-| PixiJS v8 core | JS (WebGPU/WebGL) | JS display tree | shared buffer (target) / SSE JSON (now) | View layer; consumes transform buffers |
+| PixiJS v8 core | JS (WebGPU/WebGL) | JS display tree | shared memory buffer (implemented, ADR-008) | View layer; consumes transform buffers |
 | glTF 2.0 / `.glb` | JS (GPU skinning, target) | C# skeleton comps (target) | event-driven | animation triggers from C#; skinning on GPU |
 | C# physics (Box2D.NET) | C# WASM | C# RigidBody comps | zero interop | solves dynamics in WASM memory |
 | `@pixi/tilemap` | JS (WebGPU) | C# tile-map array | one-time / chunk | binary grid buffer on load; O(1) draw calls |
@@ -136,6 +139,7 @@ The full PixiJS v8 stack is declared in `src/Game.UI/package.json`: `pixi.js`, `
 | Docs — `topology.md`, `codebase-truth.md`, ADR-007, `README.md` (AOT publish + verify instructions) | Implemented (ADR-007 Phase 5) |
 | `SpriteState` -> `TransformSnapshot` (velocity/rotation/tick) | Partial — snake/pacman/asteroids/racer entity states already carry temporal data (ADR-003); `SpriteState` (ecs/tetris/breakout) still lacks it |
 | Shared-memory `HEAPF32` zero-copy transfer — `PinnedRenderBuffer` + `[JSImport] notifyRender` over WASM heap | Implemented (ADR-008) |
+| Zero-copy layout guardrails — `Game.Engine.Generators`: `[TypeScriptExport]` stride analyzer (`BNOBO001`/`BNOBO002`) + `GeneratedSignalLayout` `[ModuleInitializer]` assert + generated `signalLayout.ts` | Implemented |
 | Box2D.NET for other games (Snake/Tetris/Breakout) | Target |
 | box2d3-wasm presentation physics (entity-selective, other games) | Target |
 | glTF importer + skeletal ECS components | Target |

@@ -40,6 +40,11 @@
 * **Description:** PixiJS v8 entity rendering must be driven by batched transform signals or shared-memory float arrays rather than per-entity JavaScript interop calls.
 * **Enforcement:** Ensure C# 2D transform structures (`X`, `Y`, `Rotation`, `ScaleX`, `ScaleY`) align with PixiJS container/sprite expectations. Update sprite positions in batch loops synchronized with render frames.
 
+### FLOAT32_LAYOUT_SYNC
+
+* **Description:** The C# float32 signal layout (`SignalBufferLayout` strides in `Game.Engine.ECS.SignalBuffer.cs`) and the TypeScript decoders (`bufferLayout.ts` + per-scene `EntityDecoder`s) must never drift.
+* **Enforcement:** Mark every sprite-state record struct with `[TypeScriptExport(floatStride)]`. The `Game.Engine.Generators` project validates it three ways: a Roslyn analyzer errors on stride mismatch (`BNOBO001`) and unsupported field types (`BNOBO002`); an incremental source generator emits `GeneratedSignalLayout` + a `[ModuleInitializer]` static assert that cross-checks the computed stride against `SignalBufferLayout` at WASM boot; the same generator writes the TypeScript half to `src/Game.UI/Frontend/scenes/generated/signalLayout.ts`. `bufferLayout.ts` imports the generated constants — never hand-maintain stride numbers in two places.
+
 ### ECS_PHYSICS_MAPPING
 
 * **Description:** Keep Arch ECS component data and `Box2D.NET` rigid body states synchronized without architectural coupling.
@@ -131,6 +136,7 @@ public static void MainLoopTick(float deltaTime)
 
 - `bonoboWebGame.slnx` is the solution; projects target .NET 10.
 - `src/Game.Engine` is a plain C# class library. Keep engine logic independent of UI and platform code. It hosts the Arch ECS (`Game.Engine.ECS`: components, `[Query]` systems, `EcsSimulation`) via vendored `src/Arch` + `src/Arch.Generators` (analyzer only).
+- `src/Game.Engine.Generators` is a Roslyn analyzer + source generator project (netstandard2.0, referenced by `Game.Engine` via `OutputItemType="Analyzer" ReferenceOutputAssembly="false"`). It enforces the zero-copy float32 layout contract: the `[TypeScriptExport]` marker attribute, the `LayoutAlignmentAnalyzer` (BNOBO001 stride mismatch / BNOBO002 unsupported field type), and the `TypeScriptInterfaceGenerator` which emits `GeneratedSignalLayout` + a `[ModuleInitializer]` boot-time static assert cross-checking `SignalBufferLayout`, plus the TypeScript half (`src/Game.UI/Frontend/scenes/generated/signalLayout.ts`). See the `FLOAT32_LAYOUT_SYNC` rule.
 - `src/Game.UI` is a shared class library (non-Razor, plain `Microsoft.NET.Sdk`). It references `Game.Engine` and owns the PixiJS frontend source (Vite + Tailwind + TypeScript) and static assets (audio, backgrounds). Built via `npm run build` in its folder.
 - `src/Game.Tests` is the xUnit v3 test project (determinism self-checks, ECS unit tests, snapshot shape). `src/Game.Tests.Aot` is the TUnit test project (AOT/trim pattern checks over the `Game.Engine` closure). Both are in the solution and run under the Microsoft.Testing.Platform runner opted in via root `global.json` — do not delete that file or `dotnet test` misbehaves on .NET 10.
 - `src/Game.Tests.UI` is the Node/TypeScript Playwright E2E suite. Not a `.csproj` — run from its folder via npm. Uses installed Chrome (`channel: 'chrome'`). Config and host setup: see `docs/testing-ui-E2E/index.md`.

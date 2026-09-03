@@ -70,8 +70,9 @@ PIXIJS v8                       sprites, containers, animation, camera, particle
 - **Bridge status:** zero-copy shared memory pipeline implemented (ADR-008): C# writes transform snapshots into a pinned `GCHandle` buffer → JS reads `Float32Array` over WASM heap via `[JSImport] notifyRender`. Client interpolation: `P_render = P_prev + (P_curr − P_prev) × α` (ADR-003). Interpolation/box2d3-wasm-coupling implementation guide (math, per-entity `InterpState` buffer, kinematic mirroring): `docs/architecture/render-interpolation.md`.
 - **Physics:** Box2D.NET = authoritative (C# ECS loop, vendored at `src/Box2D.NET`, wired into `Game.Engine` and used by `AsteroidsSimulation`); box2d3-wasm (Box2D v3 WASM) = optional presentation physics, entity-selective, used by the asteroids debris field (ADR-002, ADR-005).
 - **Skeletal animation:** glTF (`.glb`) is the asset contract, not the ECS architecture — two decoupled pipelines (authoring: AI+Blender→`.glb`; runtime: `.glb`→importer→ECS→PixiJS); the animation state machine belongs to the ECS (ADR-004).
+- **Layout sync (zero-copy guardrails):** the C# float32 layout (`SignalBufferLayout` + `SignalBufferEncoders` in `Game.Engine.ECS`) and the TypeScript decoders (`bufferLayout.ts` + per-scene `EntityDecoder`s) are kept in lockstep by `src/Game.Engine.Generators` — a Roslyn analyzer (`BNOBO001` stride mismatch, `BNOBO002` unsupported type) plus a source generator that emits `GeneratedSignalLayout` + a boot-time `[ModuleInitializer]` static assert and writes the generated `src/Game.UI/Frontend/scenes/generated/signalLayout.ts`. Mark every sprite-state struct with `[TypeScriptExport(floatStride)]`.
 
-Full matrices (ecosystem integration, implementation status, packages) live in `docs/architecture/topology.md`. Decisions: `docs/adr/` (ADR-001…ADR-008).
+Full matrices (ecosystem integration, implementation status, packages) live in `docs/architecture/topology.md`. Decisions: `docs/adr/` (ADR-001…ADR-009).
 
 **Single-player local is the default build (ADR-007).** `SINGLE_PLAYER_LOCAL` is the default C# compilation constant; `npm run build` produces a local-buffer bundle (`__RENDER_SOURCE__='local-buffer'`) with zero HTTP client code. Multiplayer is opt-in: build with `npm run build:web` + `/p:IsMultiplayer=true`.
 
@@ -89,6 +90,7 @@ The authoritative simulation is an Arch ECS world in `src/Game.Engine` (not a `D
 [Component] public struct RenderId    { public int Id; }   // stable id → client sprite
 
 // src/Game.Engine/ECS/EcsSimulation.cs — the authoritative tick
+[TypeScriptExport(6)] // zero-copy float-stride marker (Game.Engine.Generators validates it)
 public record struct SpriteState(int Id, float X, float Y, byte R, byte G, byte B);
 public sealed record EcsRenderSignal(long Seq, int EntityCount, double TickMs, IReadOnlyList<SpriteState> Sprites);
 
@@ -102,7 +104,12 @@ public sealed class EcsSimulation : IDisposable
 
 No per-entity `EntityMoved` events and no `IJSRuntime` calls from the engine: state leaves the simulation only as a batched render signal (the "Performance Gold Rule"; ADR-003 refines this toward `TransformSnapshot` + shared-memory).
 
-### Step 2: The Static-SSR Host + SSE Bridge
+### Step 2: The Static-SSR Host + SSE Bridge (legacy blueprint — superseded by ADR-008/009)
+
+> The following SSR + SSE + Razor host is the **original** MVP blueprint. It was
+> replaced by the non-Blazor browser-wasm host (`Game.Wasm`, `[JSImport]`/`[JSExport]`,
+> pinned shared-memory buffer) in ADR-008/009. `Game.Web` and the Razor host no
+> longer exist in the repo; kept here only for historical context.
 
 `Game.Web` is **static SSR only** (no Interactive Server, no SignalR circuit). It registers `EcsSimulation` as a singleton, maps the Razor components (discovering shared RCL routes via `AddAdditionalAssemblies`), and exposes one SSE endpoint that streams the batched render signal. No `IJSRuntime` on the web host.
 
