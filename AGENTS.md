@@ -1,15 +1,141 @@
-# Agent Guide
+# Agent Directives: bonoboengine.wasm.2D Architecture
+
+**Directive:** Agents must never implement per-entity draw calls, individual DOM queries, or inefficient JSON string serialization loops for 2D rendering. All high-frequency 2D transformation data must utilize zero-copy memory buffers, mapping pinned C# transform structures directly to PixiJS v8 sprite pools via a single `Float32Array` view over the WebAssembly heap.
+
+**Directive:** Agents must never serialize entity transform states into JSON, UTF-8 strings, or managed array clones during high-frequency execution loops. All spatial coordinates, velocities, and rotation data must cross the WASM-JS boundary using raw, pinned memory pointers or shared memory buffers exported by C# interop.
+
+---
+
+## Project Context
+
+* **Language:** C# 14 / .NET
+* **Framework:** .NET MAUI / Blazor WebAssembly Hybrid
+* **ECS Backend:** Arch ECS (Pure C# zero-allocation component architecture)
+* **Physics Backend:** `Box2D.NET` (Authoritative simulation loop) & `box2d3-wasm` (Optional presentation and debris physics)
+* **Render Frontend:** PixiJS v8 (2D WebGL/WebGPU Canvas renderer via batched transform buffers)
+* **UI Overlay:** Razor Class Library (RCL) + Tailwind CSS + Vite
+* **Target Environment:** Native AOT / WebAssembly (WASM)
+
+---
+
+## Architectural Rules
+
+### AOT_STRICT_COMPLIANCE
+
+* **Description:** Production binaries must compile via Native AOT. Zero runtime reflection or dynamic IL generation is permitted outside of `#if DEBUG`.
+* **Enforcement:** Wrap all `System.Reflection` usage strictly inside `#if DEBUG` ... `#endif` blocks or leverage C# source generators.
+
+### PHYSICS_MEMORY_STRICT
+
+* **Description:** `Box2D.NET` simulation loops must maintain strict memory hygiene to prevent garbage collection pressure and ensure deterministic execution.
+* **Enforcement:** Strictly utilize preallocated buffers and struct-based component patterns within Arch ECS. Never instantiate managed reference types (`class`) inside hot physics or simulation tick loops.
+
+### ZERO_COPY_INTEROP_MANDATE
+
+* **Description:** Single-player and local-buffer rendering states must cross the WebAssembly-JS boundary using zero-copy pinned memory buffers.
+* **Enforcement:** Allocate transformation buffers using `GCHandle.Alloc(..., GCHandleType.Pinned)` in C# and project a `Float32Array` view over `WebAssembly.Memory.buffer` in TypeScript to update 2D sprite transforms without garbage collection overhead.
+
+### PIXIJS_SPRITE_TRANSFORM_ALIGNMENT
+
+* **Description:** PixiJS v8 entity rendering must be driven by batched transform signals or shared-memory float arrays rather than per-entity JavaScript interop calls.
+* **Enforcement:** Ensure C# 2D transform structures (`X`, `Y`, `Rotation`, `ScaleX`, `ScaleY`) align with PixiJS container/sprite expectations. Update sprite positions in batch loops synchronized with render frames.
+
+### ECS_PHYSICS_MAPPING
+
+* **Description:** Keep Arch ECS component data and `Box2D.NET` rigid body states synchronized without architectural coupling.
+* **Enforcement:** Store physics body references or body IDs as struct components inside Arch ECS. Use dedicated system loops to sync physics pose data directly into the pinned rendering transform array.
+
+### LOOP_DECOUPLING_RULE
+
+* **Description:** Keep the fixed-step physics engine completely isolated from variable-step render ticks.
+* **Enforcement:** Execute `Box2D.NET` steps and Arch ECS updates inside a deterministic fixed-timestep accumulator loop. Never tie simulation or physics updates directly to browser `requestAnimationFrame` callbacks.
+
+---
+
+## WebAssembly Architecture Rule: Hybrid Web UI and C# Core Engine
+
+This architectural specification defines the separation of concerns, interop patterns, and execution lifecycles for a high-performance 2D C# WebAssembly game engine utilizing **PixiJS v8**, **Arch ECS**, **Box2D.NET**, and a **TypeScript / Tailwind CSS DOM overlay**.
+
+---
+
+### 1. Core Architectural Boundaries
+
+The engine separates performance-critical simulation logic from presentation and interface layers by establishing two distinct execution domains:
+
+* **The Engine Core (C# / WASM / Native AOT):**
+* Executes the Arch ECS tick loop, component memory updates, math processing, and `Box2D.NET` rigid body dynamics.
+* Writes transformation state directly into pinned unmanaged memory buffers or batched render signals.
+* Acts as the single authoritative source of truth for all gameplay logic.
+
+* **The Presentation and UI Domain (TypeScript / PixiJS v8 / Tailwind CSS):**
+* Executes inside the browser JavaScript runtime.
+* Reads transformation matrices and coordinates from the shared WASM heap to update PixiJS sprites and containers.
+* Renders HTML/CSS user interface overlays (inventories, health bars, HUDs) above the canvas using Tailwind CSS.
+
+---
+
+### 2. Interop Communication Standards (`[JSImport]` / `[JSExport]`)
+
+To minimize serialization latency and prevent garbage collection pressure across the WebAssembly boundary, all communication must adhere to strict rules:
+
+* **Zero polling rule:** Polling state across the interop boundary per frame via JSON or string serialization is strictly prohibited. Communication must be **event-driven, shared-memory bound, or streamed via batched deltas**.
+* **Shared-heap transform bridge:** High-frequency transform updates occur with zero interop overhead by allowing JavaScript `Float32Array` views to read pinned C# transform buffers directly from the WASM memory heap.
+* **Primitive-first events:** Low-frequency events (e.g., UI interactions, entity spawning) must only pass primitive types (`int`, `float`, `bool`) using `[JSImport]` and `[JSExport]`.
+
+---
+
+### 3. Simulation Lifecycle and Pause States
+
+When displaying complex UI overlays, inventories, or paused states, the engine short-circuits the execution loop to conserve CPU cycles and GPU resources.
+
+```csharp
+// Architectural pattern for loop halting
+private static bool _isSimulationPaused = false;
+
+[JSExport]
+public static void SetSimulationPaused(bool paused)
+{
+    _isSimulationPaused = paused;
+}
+
+public static void MainLoopTick(float deltaTime)
+{
+    if (_isSimulationPaused) 
+    {
+        // Skip physics steps and ECS updates.
+        // The canvas retains its last rendered frame beneath the DOM overlay.
+        return; 
+    }
+
+    ExecutePhysicsStep(deltaTime);
+    ExecuteEcsSystems();
+    SyncTransformsToPinnedBuffer();
+}
+
+```
+
+---
+
+### 4. Architectural Comparison Matrix
+
+| Architectural Layer | Implementation Technology | Primary Responsibility | Execution Frequency |
+| --- | --- | --- | --- |
+| **Simulation & Physics** | C# (Arch ECS / Box2D.NET / .NET WASM) | Game rules, entity states, 2D rigid body collisions and dynamics. | Locked to target tick rate (e.g., 60 Hz fixed timestep). |
+| **Graphics Pipeline** | TypeScript (PixiJS v8 / WebGL / WebGPU) | Sprite rendering, container hierarchies, camera panning, particle effects. | Frame-synchronized with browser `requestAnimationFrame`. |
+| **Complex UI Layer** | Razor / Tailwind CSS / Vite / TypeScript | Menus, HUDs, inventory grids, configuration panels. | Event-driven (DOM-rendered on demand). |
+| **Shared Memory Bridge** | Pinned `GCHandle` & `Float32Array` view | Zero-copy 2D transform and coordinate synchronization. | Direct memory read per render frame. |
+
+---
 
 ## Repository Shape
 
 - `bonoboWebGame.slnx` is the solution; projects target .NET 10.
 - `src/Game.Engine` is a plain C# class library. Keep engine logic independent of UI and platform code. It hosts the Arch ECS (`Game.Engine.ECS`: components, `[Query]` systems, `EcsSimulation`) via vendored `src/Arch` + `src/Arch.Generators` (analyzer only).
 - `src/Game.UI` is the shared Razor Class Library. It references `Game.Engine` and owns shared Razor components plus PixiJS assets.
-- `src/Game.Web` is the Blazor Web App host. It uses **static SSR only** (no Interactive Server, no SignalR circuit, no reconnect modal) and discovers shared RCL routes via `AddAdditionalAssemblies` in `Program.cs` plus the `Router` `AdditionalAssemblies` in `Components/Routes.razor`. PixiJS is bootstrapped client-side from an inline `load`-event script in `Components/App.razor`, which reads the engine payload from `#pixi-viewport[data-message]`.
 - `src/Game.Tests` is the xUnit v3 test project (determinism self-checks, ECS unit tests, snapshot shape). `src/Game.Tests.Aot` is the TUnit test project (AOT/trim pattern checks over the `Game.Engine` closure). Both are in the solution and run under the Microsoft.Testing.Platform runner opted in via root `global.json` — do not delete that file or `dotnet test` misbehaves on .NET 10.
-- `src/Game.Tests.UI` is the Node/TypeScript Playwright E2E suite against the real `Game.Web` host. Not a `.csproj` — run from its folder via npm. Uses installed Chrome (`channel: 'chrome'`); config boots the host on port 5902. See `docs/testing-ui-E2E/index.md`.
+- `src/Game.Tests.UI` is the Node/TypeScript Playwright E2E suite. Not a `.csproj` — run from its folder via npm. Uses installed Chrome (`channel: 'chrome'`); config boots the host on port 5902. See `docs/testing-ui-E2E/index.md`.
 - `src/Game.Maui` is the .NET MAUI Blazor Hybrid host. It targets Android by default, plus iOS, Mac Catalyst, and Windows when supported by the OS/workloads. **Currently commented out of `bonoboWebGame.slnx` (temporary web-only solution build for speed)** — build it directly with `dotnet build src/Game.Maui/Game.Maui.csproj` when doing native app work.
-- `src/Box2D.NET` is a **vendored** C# physics library, **referenced** by `Game.Engine.csproj` and used by `AsteroidsSimulation` as the authoritative physics world (ADR-002). `src/BrainAI` (pathfinding/AI) remains vendored but **unreferenced** — treat as a target dependency, not active. `src/Temp/` holds upstream samples/demos (`Box2D.NET.Samples`, `Box2D.NET.Shared`, `BrainAI.Demo`, `ECS-example`, `AsteroidsWasm` — the reference Asteroids game) plus the source topology doc — not part of the build/solution.
+- `src/Box2D.NET` is a **vendored** C# physics library, **referenced** by `Game.Engine.csproj` as the authoritative physics world (ADR-002). `src/BrainAI` (pathfinding/AI) remains vendored but **unreferenced** — treat as a target dependency, not active. `src/Temp/` holds upstream samples/demos — not part of the build/solution.
 - The PixiJS v8 ecosystem (`pixi.js`, `@pixi/ui`, `@pixi/sound`, `@pixi/tilemap`, `pixi-viewport`, `pixi-filters`, `@spd789562/particle-emitter`) is declared in `src/Game.UI/package.json`. **box2d3-wasm (Box2D v3 WASM)** is optional presentation-physics only (ADR-002).
 
 ## Agent References
@@ -25,23 +151,25 @@ Summary of the scope an agent can search using this server:
 
 - `docs/2d-games` and `docs/game-development` — game architecture and gamedev workflow references (see `docs/index.md`).
 - `docs/architecture/topology.md` — engine topology deep-dive (Implemented vs Target): three-layer runtime, WASM→JS bridge, physics, skeletal pipelines, domain matrix, ecosystem matrix, implementation status.
-- `docs/adr/` — Architecture Decision Records (ADR-001 topology … ADR-006 domain matrix, ADR-007 single-player default). Read before changing cross-boundary, physics, render-bridge, or asset-pipeline decisions.
-- `.agents/skills/static-ssr-snapshot-bridge/SKILL.md` — mandatory rules for the `Game.Web` host + C#↔JS boundary (static SSR only, batched-snapshot SSE/POST bridge, strict TS payload types). Supersedes any generic "Blazor WASM + Vite + CustomElements" skill for this repo; load it before touching hosting, bootstrap, the render bridge, or Frontend interop.
+- `docs/adr/` — Architecture Decision Records. Read before changing cross-boundary, physics, render-bridge, or asset-pipeline decisions.
 
 ## Architectural Guardrails
 
-These rules govern code that crosses the C#↔JS boundary or touches the simulation/presentation split. Backed by ADR-001…ADR-007 and `docs/architecture/topology.md`.
+**how data crosses the C#↔JS interop boundary** have been superseded by the migration to the **zero-copy shared memory pipeline**.
 
-- **C# is the sole authoritative simulation.** Never run authoritative physics/logic in JS. Never implement the same authority in both layers (prevents desync/rollback). (ADR-001, ADR-006)
-- **Cross the boundary via batched render snapshots, not per-entity per-frame interop.** The boundary concept is "the simulation produced a render snapshot," not "an entity moved." Never move simulation back-and-forth through JS interop every frame. (ADR-003)
-- **Single-player local is the default build (ADR-007).** `SINGLE_PLAYER_LOCAL` is defined by default in `Game.Engine.csproj` (suppressed only by `/p:IsMultiplayer=true` or `/p:IsEcsServerSide=true`), and `npm run build` defaults the Vite `__RENDER_SOURCE__` to `'local-buffer'`. Both sides of the boundary share one flag pair; keep them in sync.
-- **`fetch` POST is multiplayer-only; scenes never call `fetch`.** All commands (input, start, reset, pause, config) route through `SignalStream.postCommand(path, bodyJson?)` in `src/Game.UI/Frontend/scenes/signalSource.ts`. The SSE branch (`npm run build:web`, `--mode web`) is the only place HTTP POST client code exists, and it is dead-code-eliminated from local bundles. The local branch dispatches in-process via `LocalBufferProvider.postCommand` registered by the co-located WASM host — no new input layer/library. (ADR-007)
-- **Snapshots must carry temporal context** (prev+current position, velocity, rotation, tick) so the client can interpolate at display Hz. Current `SpriteState` lacks these — extending toward `TransformSnapshot` is the first bridge task. (ADR-003)
-- **Keep any JS-side physics world (box2d3-wasm) resident** in JS/WASM; feed it snapshots at discrete boundaries. Use box2d3-wasm only for genuine visual dynamics (capes, ropes, ragdolls, debris); use cheap `lerp`/`slerp`/`spring` for plain interpolation. (ADR-002, ADR-005)
-- **Box2D.NET is the authoritative physics engine** (vendored `src/Box2D.NET`, wired into `Game.Engine` and used by `AsteroidsSimulation`). box2d3-wasm is presentation-only, never authoritative. (ADR-002)
-- **glTF (`.glb`) is the asset contract, not the ECS architecture.** Don't create one entity per glTF node; use contiguous arrays in `SkeletonComponent`. The animation state machine belongs to the ECS, not glTF. Authoring (AI+Blender) is an offline content pipeline, not part of the game runtime. (ADR-004)
-- **Presentation-side work** (interpolation, camera smoothing, secondary motion, particles, animation blending from velocity) lives in PixiJS; C# only dictates root entity state. (ADR-005, ADR-006)
-- **When adding packages:** the PixiJS ecosystem is already in `src/Game.UI/package.json`; do not duplicate. box2d3-wasm is the only planned addition, and only when presentation physics is actually needed.
+---
+
+### Architectural Guardrails Status Matrix
+
+| Guardrail Category | Status | Architectural Impact of the New Interop Layer |
+| --- | --- | --- |
+| **C# Authority & ECS / Box2D.NET** | **Valid** | C# remains the sole authoritative simulation engine using Arch ECS and `Box2D.NET`. Game logic and physics simulation are never executed in JavaScript. |
+| **Transport Layer (`fetch` POST / SSE Streams)** | **Superseded** | The legacy SSE stream (`/api/ecs/stream` pushing JSON `SpriteState[]`) and HTTP POST render bridges are deprecated for rendering. They are replaced by direct, zero-copy `Float32Array` views over the WASM memory heap. |
+| **Single-Player Local Default** | **Valid** | Local-buffer builds remain the default (`SINGLE_PLAYER_LOCAL`), avoiding unnecessary network abstraction layers during single-player execution. |
+| **Temporal Context & Snapshots** | **Upgraded** | Instead of serializing temporal JSON snapshots over network bridges, hot-path coordinate, rotation, and scale data stream continuously via pinned unmanaged memory pointers (`GCHandle.Alloc` + WebAssembly heap mapping). |
+| **Presentation Split (PixiJS v8)** | **Valid** | PixiJS v8 remains strictly responsible for rendering, sprite pools, camera control, and interpolation, reading directly from the shared memory buffer without per-entity interop polling. |
+
+---
 
 ## Commands
 
@@ -59,11 +187,8 @@ Run from `src/Game.UI`:
 ```powershell
 npm ci
 npm run build        # DEFAULT: single-player co-located bundle (__RENDER_SOURCE__='local-buffer')
-npm run build:web    # multiplayer/SSE bundle for the Game.Web host (__RENDER_SOURCE__='sse')
 npm run typecheck    # scoped tsconfig.app.json (Frontend) + tsconfig.node.json (vite.config.ts)
 ```
-
-The Game.Web static-SSR host serves SSE streams, so it needs the `build:web` bundle — build it before running `dotnet watch --project src/Game.Web` (or before Playwright E2E, which boots that host).
 
 Run Playwright E2E from `src/Game.Tests.UI` (Node project; needs `npm ci` first):
 
@@ -76,12 +201,6 @@ npm run typecheck
 **⚠️ ESM constraint:** `src/Game.Tests.UI/package.json` declares `"type": "module"`. Any standalone `.js` script written in that directory MUST use ESM `import` syntax (not `require()`). Use `.cjs` extension for CommonJS, or run scripts from the repo root. See `docs/testing-ui-E2E/index.md` §Standalone Screenshot Scripts for the corrected pattern (process lifecycle, path resolution, HTTP readiness polling).
 
 For exploratory agent-driven browser work use the `playwright-cli` skill with Chrome: `playwright-cli open <url> --browser=chrome`. A Playwright MCP server is NOT needed — skills + playwright-cli + the checked-in Playwright suite cover this repo (verdict + rationale in `docs/testing-ui-E2E/index.md`).
-
-Run web host from repository root:
-
-```powershell
-dotnet watch --project src/Game.Web
-```
 
 `Game.UI` scripts build Vite JavaScript first, then Tailwind CSS. Vite reads `Frontend/game.ts` and writes generated files to `src/Game.UI/wwwroot/dist`; do not hand-edit generated output. `npm run watch:js` and `npm run watch:css` are separate long-running watchers.
 
@@ -98,4 +217,4 @@ MAUI builds require .NET MAUI workloads. Platform-specific target frameworks may
 ## Agent Rules
 
 ### SHELL_TIMEOUT_600
-* **Enforcement:** Always run any shell command with a timeout of 600 seconds (600000 ms).
+***Enforcement:** Always run any shell command with a timeout of 600 seconds (600000 ms).
