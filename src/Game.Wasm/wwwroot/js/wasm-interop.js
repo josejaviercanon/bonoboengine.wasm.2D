@@ -17,6 +17,19 @@ function dispatchFloats(eventName, floats) {
     }
 }
 
+/**
+ * One-shot scene-boot helpers. The co-located WASM host exposes scene
+ * controllers (WasmInterop.*) as JSImport targets; the browser calls them
+ * through the local-buffer provider instead of HTTP. Each scene owns its
+ * own setup entry so initial state can be re-injected before the
+ * simulation starts ticking.
+ */
+function setupRacerInitialFastLap(seconds) {
+    const w = _exports?.Game?.Wasm?.WasmInterop;
+    if (!w || typeof w.RacerSetInitialFastLapTime !== 'function') return;
+    w.RacerSetInitialFastLapTime(seconds);
+}
+
 function postCommand(path, bodyJson) {
     const parts = path.replace(/^\/+/, '').split('/');
     if (parts.length < 3) return;
@@ -100,6 +113,10 @@ export function setupProvider(exports) {
             this._listeners[eventName].push(onData);
         },
         postCommand,
+        // One-shot scene-boot helpers. local-buffer bundles reach the C# sim
+        // here; the SSE/web branch never invokes them (no provider in that
+        // build path), so this stays the single-player side of ADR-007.
+        setupRacerInitialFastLap,
         close() {}
     };
 

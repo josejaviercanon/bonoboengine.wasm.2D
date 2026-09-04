@@ -8,6 +8,17 @@ namespace Game.Engine.ECS.Racer;
 /// <summary>
 ///     Authoritative pseudo-3D racer simulation. C# owns input validation, motion,
 ///     traffic, collisions and lap timing; the browser receives batched snapshots.
+///
+///     Source port: <c>src/Temp/javascript-racer/game.html</c> (Jake Gordon, v4 final).
+///     The track recipe, physics constants, sprite atlas, segment projection,
+///     collision rules, lap timing, HUD layout, start overlay, restart, config
+///     panel, mute and music are 1:1 with the v4 final source. The browser-side
+///     render is a PixiJS v8 re-implementation of <c>Util.project</c> +
+///     <c>Render.segment</c> + <c>Render.sprite</c> + parallax background +
+///     sprite pool. Best-lap time persists across reloads via
+///     <c>localStorage['racer-fast-lap']</c> on the client (mirrors
+///     <c>Dom.storage.fast_lap_time</c> in v4 final) and is re-injected via
+///     <see cref="SetInitialFastLapTime"/> at scene boot.
 /// </summary>
 public sealed class RacerSimulation : IDisposable
 {
@@ -38,6 +49,7 @@ public sealed class RacerSimulation : IDisposable
     private readonly Timer? _timer;
     private readonly List<Entity> _roadSegments = new();
     private readonly List<Entity> _roadSprites = new();
+    private readonly Entity[] _entityScratch = new Entity[2048];
     private Group<double> _systems = null!;
     private RacerSettings _settings;
     private RacerInputRequest _input;
@@ -86,11 +98,11 @@ public sealed class RacerSimulation : IDisposable
 
         _systems = new Group<double>(
             "Racer",
-            new RacerInputSystem(_world, ReadInput),
-            new RacerTrafficSystem(_world, ReadSettings, () => _roadSegments.Count),
-            new RacerPlayerControlSystem(_world, ReadSettings, CurveAt, () => _roadSegments.Count),
-            new RacerCollisionSystem(_world, ReadSettings, () => _roadSegments.Count, SegmentP1Z),
-            new RacerLapSystem(_world, ReadSettings));
+            new RacerInputSystem(_world, _entityScratch, ReadInput),
+            new RacerTrafficSystem(_world, _entityScratch, ReadSettings, () => _roadSegments.Count),
+            new RacerPlayerControlSystem(_world, _entityScratch, ReadSettings, CurveAt, () => _roadSegments.Count),
+            new RacerCollisionSystem(_world, _entityScratch, ReadSettings, () => _roadSegments.Count, SegmentP1Z),
+            new RacerLapSystem(_world, _entityScratch, ReadSettings));
         _systems.Initialize();
 
         if (startTimer)
@@ -112,6 +124,16 @@ public sealed class RacerSimulation : IDisposable
         get
         {
             lock (_sync) return _trackLength;
+        }
+    }
+
+    public int EntityCount => _world.Size;
+
+    public long Sequence
+    {
+        get
+        {
+            lock (_sync) return _seq;
         }
     }
 
@@ -140,6 +162,29 @@ public sealed class RacerSimulation : IDisposable
         lock (_sync) _paused = false;
     }
 
+    /// <summary>
+    ///     Seeds the persistent best-lap from <c>localStorage</c> at scene boot.
+    ///     Mirrors v4 final's <c>Dom.storage.fast_lap_time = Dom.storage.fast_lap_time || 180</c>
+    ///     (game.html:625). Only takes effect when the current value is still at
+    ///     the default (180s) so user-earned bests are never overwritten.
+    /// </summary>
+    public void SetInitialFastLapTime(float seconds)
+    {
+        if (!float.IsFinite(seconds) || seconds <= 0f) return;
+        lock (_sync)
+        {
+            var entities = RacerEcsHelpers.Entities(_world, _entityScratch);
+            var statsEntity = RacerEcsHelpers.FindStats(_world, entities);
+            if (statsEntity == Entity.Null) return;
+            var stats = _world.Get<RacerStatsComponent>(statsEntity);
+            if (stats.FastLapTime >= RacerConfig.DefaultFastLapTime - 0.001f)
+            {
+                stats.FastLapTime = seconds;
+                _world.Set(statsEntity, stats);
+            }
+        }
+    }
+
     public void ApplyConfig(RacerConfigRequest request)
     {
         lock (_sync)
@@ -148,7 +193,7 @@ public sealed class RacerSimulation : IDisposable
                 Math.Clamp(request.Lanes, 1, 4),
                 ClampFinite(request.RoadWidth, 500f, 3000f, RacerConfig.DefaultRoadWidth),
                 ClampFinite(request.CameraHeight, 500f, 5000f, RacerConfig.DefaultCameraHeight),
-                Math.Clamp(request.DrawDistance, 20, 200),
+                Math.Clamp(request.DrawDistance, 100, 500),
                 ClampFinite(request.FieldOfView, 80f, 140f, RacerConfig.DefaultFieldOfView),
                 ClampFinite(request.FogDensity, 0f, 50f, RacerConfig.DefaultFogDensity),
                 ClampFinite(request.ResolutionScale, 0.4f, 1.5f, 1f));
@@ -216,7 +261,8 @@ public sealed class RacerSimulation : IDisposable
         _systems.AfterUpdate(in dt);
         stopwatch.Stop();
 
-        var statsEntity = RacerEcsHelpers.FindStats(_world);
+        var statsEntities = RacerEcsHelpers.Entities(_world, _entityScratch);
+        var statsEntity = RacerEcsHelpers.FindStats(_world, statsEntities);
         var stats = statsEntity == Entity.Null
             ? default
             : _world.Get<RacerStatsComponent>(statsEntity);
@@ -275,15 +321,16 @@ public sealed class RacerSimulation : IDisposable
             new Velocity(0f, 0f),
             new PlayerInputComponent(false, false, false, false),
             new BoundingBoxComponent(RacerConfig.PlayerSpriteWidth * RacerConfig.SpriteScale, 1f));
-        _world.Create(new RacerStatsComponent(180f));
+        _world.Create(new RacerStatsComponent());
         _trackLength = _roadSegments.Count * RacerConfig.SegmentLength;
     }
 
     private void DestroyWorld()
     {
-        var entities = RacerEcsHelpers.Entities(_world);
-        foreach (var entity in entities)
+        var entities = RacerEcsHelpers.Entities(_world, _entityScratch);
+        for (var i = 0; i < entities.Length; i++)
         {
+            var entity = entities[i];
             if (_world.IsAlive(entity)) _world.Destroy(entity);
         }
     }
@@ -507,12 +554,12 @@ public sealed class RacerSimulation : IDisposable
 
     private RacerPlayerState BuildPlayerSnapshot()
     {
-        var entities = RacerEcsHelpers.Entities(_world);
+        var entities = RacerEcsHelpers.Entities(_world, _entityScratch);
         var player = RacerEcsHelpers.FindPlayer(_world, entities);
         var statsEntity = RacerEcsHelpers.FindStats(_world, entities);
         if (player == Entity.Null || statsEntity == Entity.Null)
         {
-            return new RacerPlayerState(0f, 0f, 0f, 0f, 0f, 180f, 0, 0, false);
+            return new RacerPlayerState(0f, 0f, 0f, 0f, 0f, RacerConfig.DefaultFastLapTime, 0, 0, false);
         }
 
         var transform = _world.Get<TransformComponent>(player);
@@ -538,14 +585,15 @@ public sealed class RacerSimulation : IDisposable
 
     private IReadOnlyList<RacerCarState> BuildCarSnapshot(bool includeAll)
     {
-        var entities = RacerEcsHelpers.Entities(_world);
+        var entities = RacerEcsHelpers.Entities(_world, _entityScratch);
         var player = RacerEcsHelpers.FindPlayer(_world, entities);
         var playerZ = player == Entity.Null ? 0f : _world.Get<TransformComponent>(player).Z;
         var maxDistance = _settings.DrawDistance * RacerConfig.SegmentLength;
         var cars = new List<RacerCarState>(RacerConfig.TotalCars);
 
-        foreach (var entity in entities)
+        for (var i = 0; i < entities.Length; i++)
         {
+            var entity = entities[i];
             if (!_world.IsAlive(entity) || !_world.Has<AICarComponent>(entity)) continue;
             var transform = _world.Get<TransformComponent>(entity);
             var car = _world.Get<AICarComponent>(entity);

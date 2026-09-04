@@ -63,6 +63,13 @@ export interface LocalBufferProvider {
     onSignal(eventName: string, onData: (floats: Float32Array) => void): void;
     /** Direct command: dispatch `path` to the sim in-process, zero HTTP. */
     postCommand?(path: string, bodyJson?: string): void;
+    /**
+     * One-shot scene-boot setup. Re-injects initial state (e.g. best-lap
+     * from `localStorage`) into the authoritative C# sim before its
+     * 60 Hz timer starts ticking. local-buffer branch only; absent in
+     * SSE bundles, callers must guard with optional chaining.
+     */
+    setupRacerInitialFastLap?(seconds: number): void;
     close?(): void;
 }
 
@@ -70,6 +77,15 @@ let localBufferProvider: LocalBufferProvider | null = null;
 
 export function registerLocalBufferProvider(provider: LocalBufferProvider): void {
     localBufferProvider = provider;
+}
+
+/**
+ * Returns the raw local-buffer provider (or null in SSE bundles) so a scene
+ * can reach one-shot setup methods like `setupRacerInitialFastLap`. The
+ * provider is set by the co-located WASM host before any scene boots.
+ */
+export function getLocalBufferProvider(): LocalBufferProvider | null {
+    return localBufferProvider;
 }
 
 export function connectSignalStream(url: string | undefined): SignalStream | null {

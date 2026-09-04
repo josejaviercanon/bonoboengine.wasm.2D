@@ -3,8 +3,21 @@ import { sound } from '@pixi/sound';
 import type { SceneBuilder } from './types';
 import { publishCSharpStats } from '../stats/overlays';
 import { SnapshotBuffer, lerp, lerpWrapped } from './interpolation';
-import { connectSignalStream, type SignalStream } from './signalSource';
+import { connectSignalStream, getLocalBufferProvider, type SignalStream } from './signalSource';
 import { BUFFER_HEADER_LENGTH, floatBool, readSignalHeader, type EntityDecoder } from './bufferLayout';
+
+const FAST_LAP_STORAGE_KEY = 'racer-fast-lap';
+const DEFAULT_FAST_LAP_SECONDS = 180;
+
+/// <summary>
+///   PixiJS v8 re-port of <c>src/Temp/javascript-racer/game.html</c> (v4 final).
+///   Track layout, physics constants, sprite atlas, segment projection,
+///   collision rules, lap timing, HUD layout (4 fields), start overlay,
+///   restart, config panel, mute, music and best-lap persistence are
+///   1:1 with the v4 final source. C# stays authoritative for input,
+///   motion, traffic, collisions and lap timing; the browser receives
+///   batched snapshots through a pinned shared-memory <c>Float32Array</c>.
+/// </summary>
 
 interface RacerSettings {
     lanes: number;
@@ -194,7 +207,7 @@ const DEFAULT_SETTINGS: RacerSettings = {
     lanes: 3,
     roadWidth: 2000,
     cameraHeight: 1000,
-    drawDistance: 120,
+    drawDistance: 300,
     fieldOfView: 100,
     fogDensity: 5,
     resolutionScale: 1,
@@ -215,6 +228,25 @@ const SOUND_ALIAS = 'racer-music';
 const SOUND_URL = './games/racer/racer.mp3';
 
 const dbg = (...args: unknown[]) => console.log('[pixi-debug] racer:', ...args);
+
+function readStoredFastLap(): number {
+    try {
+        const raw = globalThis.localStorage?.getItem(FAST_LAP_STORAGE_KEY);
+        if (!raw) return 0;
+        const value = Number.parseFloat(raw);
+        return Number.isFinite(value) && value > 0 ? value : 0;
+    } catch {
+        return 0;
+    }
+}
+
+function persistFastLap(seconds: number): void {
+    try {
+        globalThis.localStorage?.setItem(FAST_LAP_STORAGE_KEY, seconds.toString());
+    } catch {
+        // localStorage may be disabled (private mode quota, etc.) — fail silently.
+    }
+}
 
 function isRacerRenderSignal(value: unknown): value is RacerRenderSignal {
     if (!value || typeof value !== 'object') return false;
@@ -341,7 +373,7 @@ function makeSettingsPanel(
         ['lanes', 'Lanes', 1, 4, 1],
         ['roadWidth', 'Road width', 500, 3000, 50],
         ['cameraHeight', 'Camera height', 500, 5000, 50],
-        ['drawDistance', 'Draw distance', 20, 200, 10],
+        ['drawDistance', 'Draw distance', 100, 500, 10],
         ['fieldOfView', 'Field of view', 80, 140, 1],
         ['fogDensity', 'Fog density', 0, 50, 1],
         ['resolutionScale', 'Resolution', 0.4, 1.5, 0.1],
@@ -421,7 +453,7 @@ export const racerScene: SceneBuilder = async (app, params, ctx) => {
     const trackLength = track.trackLength ?? segments.length * segmentLength;
     let settings = racer.settings ?? DEFAULT_SETTINGS;
     let player = racer.player ?? {
-        x: 0, z: 0, speed: 0, currentLapTime: 0, lastLapTime: 0, fastLapTime: 180,
+        x: 0, z: 0, speed: 0, currentLapTime: 0, lastLapTime: 0, fastLapTime: DEFAULT_FAST_LAP_SECONDS,
         lap: 0, steer: 0, uphill: false,
     };
     let cars = racer.cars ?? [];
@@ -434,6 +466,17 @@ export const racerScene: SceneBuilder = async (app, params, ctx) => {
     const playerInterpolation = new SnapshotBuffer<RacerPlayerSample>();
     const carInterpolation = new SnapshotBuffer<RacerCarState>();
     let lastEpoch: number | null = null;
+    let lastPersistedFastLap = -1;
+
+    // v4 final game.html:625: `Dom.storage.fast_lap_time = Dom.storage.fast_lap_time || 180`
+    // Read once at boot, push into the C# sim via the local-buffer provider so
+    // the authoritative HUD value survives a page reload. local-buffer builds
+    // only; SSE/web builds skip this (the server's sim keeps state in memory).
+    const storedFastLap = readStoredFastLap();
+    if (storedFastLap > 0) {
+        getLocalBufferProvider()?.setupRacerInitialFastLap?.(storedFastLap);
+        lastPersistedFastLap = storedFastLap;
+    }
 
     app.renderer.background.color = '#72d7ee';
 
@@ -1065,6 +1108,14 @@ export const racerScene: SceneBuilder = async (app, params, ctx) => {
         player = signal.player;
         cars = signal.cars;
         settings = signal.settings;
+        // Persist best-lap when the authoritative C# sim lowers it (v4 final:
+        // `Dom.storage.fast_lap_time = lastLapTime` on a new fastest, see
+        // game.html:220-225). Write only when the value actually changes so
+        // the page doesn't thrash `localStorage` 60×/s.
+        if (player.fastLapTime > 0 && player.fastLapTime !== lastPersistedFastLap) {
+            persistFastLap(player.fastLapTime);
+            lastPersistedFastLap = player.fastLapTime;
+        }
         playerInterpolation.ingest([{ id: 0, ...signal.player }], signal.seq, signal.epoch);
         carInterpolation.ingest(signal.cars, signal.seq, signal.epoch);
         if (!tuningOpen) panel.update(settings);
@@ -1156,6 +1207,7 @@ export const racerScene: SceneBuilder = async (app, params, ctx) => {
     stream?.addBufferListener('racer-move', (floats) => {
         try {
             const header = readSignalHeader(floats);
+            dbg('racer-move buffer:', floats.length, 'header:', header.entityCount, 'stride:', header.stride);
             const cars: RacerCarState[] = [];
             for (let i = 0; i < header.entityCount; i++) {
                 cars.push(decodeRacerCar(floats, RACER_BUFFER_ENTITY_BASE + i * header.stride));

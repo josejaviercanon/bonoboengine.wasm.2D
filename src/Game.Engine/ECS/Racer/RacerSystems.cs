@@ -5,28 +5,39 @@ namespace Game.Engine.ECS.Racer;
 
 internal static class RacerEcsHelpers
 {
-    public static Entity[] Entities(World world)
+    /// <summary>
+    ///     Fills <paramref name="scratch"/> with every entity in the world and
+    ///     returns the array (possibly grown). The simulation owns one
+    ///     <see cref="Entity"/>[] scratch buffer reused across all per-tick
+    ///     systems to avoid ~5×60 = 300 array allocations per second.
+    /// </summary>
+    public static Entity[] Entities(World world, Entity[] scratch)
     {
-        var entities = new Entity[world.Size];
-        world.GetEntities(new QueryDescription(), entities.AsSpan());
-        return entities;
+        if (scratch.Length < world.Size)
+        {
+            var grown = new Entity[world.Size];
+            world.GetEntities(new QueryDescription(), grown.AsSpan());
+            return grown;
+        }
+        world.GetEntities(new QueryDescription(), scratch.AsSpan(0, world.Size));
+        return scratch;
     }
 
-    public static Entity FindPlayer(World world, Entity[]? entities = null)
+    public static Entity FindPlayer(World world, Entity[] entities)
     {
-        entities ??= Entities(world);
-        foreach (var entity in entities)
+        for (var i = 0; i < entities.Length; i++)
         {
+            var entity = entities[i];
             if (world.IsAlive(entity) && world.Has<PlayerTag>(entity)) return entity;
         }
         return Entity.Null;
     }
 
-    public static Entity FindStats(World world, Entity[]? entities = null)
+    public static Entity FindStats(World world, Entity[] entities)
     {
-        entities ??= Entities(world);
-        foreach (var entity in entities)
+        for (var i = 0; i < entities.Length; i++)
         {
+            var entity = entities[i];
             if (world.IsAlive(entity) && world.Has<RacerStatsComponent>(entity)) return entity;
         }
         return Entity.Null;
@@ -71,16 +82,18 @@ internal static class RacerEcsHelpers
 /// <summary>Copies queued browser input into the player component once per fixed tick.</summary>
 public sealed class RacerInputSystem : BaseSystem<World, double>
 {
+    private readonly Entity[] _scratch;
     private readonly Func<RacerInputRequest> _readInput;
 
-    public RacerInputSystem(World world, Func<RacerInputRequest> readInput) : base(world)
+    public RacerInputSystem(World world, Entity[] scratch, Func<RacerInputRequest> readInput) : base(world)
     {
+        _scratch = scratch;
         _readInput = readInput;
     }
 
     public override void Update(in double t)
     {
-        var entities = RacerEcsHelpers.Entities(World);
+        var entities = RacerEcsHelpers.Entities(World, _scratch);
         var player = RacerEcsHelpers.FindPlayer(World, entities);
         if (player == Entity.Null) return;
 
@@ -92,16 +105,19 @@ public sealed class RacerInputSystem : BaseSystem<World, double>
 /// <summary>Integrates player position, lateral movement and speed.</summary>
 public sealed class RacerPlayerControlSystem : BaseSystem<World, double>
 {
+    private readonly Entity[] _scratch;
     private readonly Func<RacerSettings> _readSettings;
     private readonly Func<int, float> _curveAt;
     private readonly Func<int> _segmentCount;
 
     public RacerPlayerControlSystem(
         World world,
+        Entity[] scratch,
         Func<RacerSettings> readSettings,
         Func<int, float> curveAt,
         Func<int> segmentCount) : base(world)
     {
+        _scratch = scratch;
         _readSettings = readSettings;
         _curveAt = curveAt;
         _segmentCount = segmentCount;
@@ -109,7 +125,7 @@ public sealed class RacerPlayerControlSystem : BaseSystem<World, double>
 
     public override void Update(in double t)
     {
-        var entities = RacerEcsHelpers.Entities(World);
+        var entities = RacerEcsHelpers.Entities(World, _scratch);
         var player = RacerEcsHelpers.FindPlayer(World, entities);
         var statsEntity = RacerEcsHelpers.FindStats(World, entities);
         if (player == Entity.Null || statsEntity == Entity.Null) return;
@@ -175,18 +191,24 @@ public sealed class RacerPlayerControlSystem : BaseSystem<World, double>
 /// <summary>Advances AI traffic and ports the reference steering heuristic.</summary>
 public sealed class RacerTrafficSystem : BaseSystem<World, double>
 {
+    private readonly Entity[] _scratch;
     private readonly Func<RacerSettings> _readSettings;
     private readonly Func<int> _segmentCount;
 
-    public RacerTrafficSystem(World world, Func<RacerSettings> readSettings, Func<int> segmentCount) : base(world)
+    public RacerTrafficSystem(
+        World world,
+        Entity[] scratch,
+        Func<RacerSettings> readSettings,
+        Func<int> segmentCount) : base(world)
     {
+        _scratch = scratch;
         _readSettings = readSettings;
         _segmentCount = segmentCount;
     }
 
     public override void Update(in double t)
     {
-        var entities = RacerEcsHelpers.Entities(World);
+        var entities = RacerEcsHelpers.Entities(World, _scratch);
         var player = RacerEcsHelpers.FindPlayer(World, entities);
         if (player == Entity.Null) return;
 
@@ -201,14 +223,16 @@ public sealed class RacerTrafficSystem : BaseSystem<World, double>
             playerTransform.Z + playerZ, count, RacerConfig.SegmentLength);
         var playerWidth = RacerConfig.PlayerSpriteWidth * RacerConfig.SpriteScale;
         var cars = new List<Entity>(RacerConfig.TotalCars);
-        foreach (var entity in entities)
+        for (var i = 0; i < entities.Length; i++)
         {
+            var entity = entities[i];
             if (World.IsAlive(entity) && World.Has<AICarComponent>(entity)) cars.Add(entity);
         }
 
         var dt = (float)t;
-        foreach (var carEntity in cars)
+        for (var c = 0; c < cars.Count; c++)
         {
+            var carEntity = cars[c];
             var transform = World.Get<TransformComponent>(carEntity);
             var car = World.Get<AICarComponent>(carEntity);
             var oldSegment = RacerEcsHelpers.SegmentIndex(transform.Z, count, RacerConfig.SegmentLength);
@@ -250,8 +274,9 @@ public sealed class RacerTrafficSystem : BaseSystem<World, double>
                 return direction * (1f / i) * (car.Speed - playerSpeed) / RacerConfig.MaxSpeed;
             }
 
-            foreach (var otherEntity in cars)
+            for (var j = 0; j < cars.Count; j++)
             {
+                var otherEntity = cars[j];
                 if (otherEntity == carEntity || !World.IsAlive(otherEntity)) continue;
                 var otherTransform = World.Get<TransformComponent>(otherEntity);
                 if (RacerEcsHelpers.SegmentIndex(otherTransform.Z, segmentCount, RacerConfig.SegmentLength) != segment)
@@ -284,16 +309,19 @@ public sealed class RacerTrafficSystem : BaseSystem<World, double>
 /// <summary>Resolves roadside and traffic collisions against the player.</summary>
 public sealed class RacerCollisionSystem : BaseSystem<World, double>
 {
+    private readonly Entity[] _scratch;
     private readonly Func<RacerSettings> _readSettings;
     private readonly Func<int> _segmentCount;
     private readonly Func<int, float> _segmentP1Z;
 
     public RacerCollisionSystem(
         World world,
+        Entity[] scratch,
         Func<RacerSettings> readSettings,
         Func<int> segmentCount,
         Func<int, float> segmentP1Z) : base(world)
     {
+        _scratch = scratch;
         _readSettings = readSettings;
         _segmentCount = segmentCount;
         _segmentP1Z = segmentP1Z;
@@ -301,7 +329,7 @@ public sealed class RacerCollisionSystem : BaseSystem<World, double>
 
     public override void Update(in double t)
     {
-        var entities = RacerEcsHelpers.Entities(World);
+        var entities = RacerEcsHelpers.Entities(World, _scratch);
         var player = RacerEcsHelpers.FindPlayer(World, entities);
         var statsEntity = RacerEcsHelpers.FindStats(World, entities);
         if (player == Entity.Null || statsEntity == Entity.Null) return;
@@ -320,8 +348,9 @@ public sealed class RacerCollisionSystem : BaseSystem<World, double>
 
         if (playerTransform.X < -1f || playerTransform.X > 1f)
         {
-            foreach (var entity in entities)
+            for (var i = 0; i < entities.Length; i++)
             {
+                var entity = entities[i];
                 if (!World.IsAlive(entity) || !World.Has<RoadSpriteComponent>(entity)) continue;
                 var roadSprite = World.Get<RoadSpriteComponent>(entity);
                 if (roadSprite.SegmentIndex != playerSegment || !World.Has<SpriteComponent>(entity)) continue;
@@ -342,8 +371,9 @@ public sealed class RacerCollisionSystem : BaseSystem<World, double>
 
         if (!stats.Collided)
         {
-            foreach (var entity in entities)
+            for (var i = 0; i < entities.Length; i++)
             {
+                var entity = entities[i];
                 if (!World.IsAlive(entity) || !World.Has<AICarComponent>(entity)) continue;
                 var carTransform = World.Get<TransformComponent>(entity);
                 var car = World.Get<AICarComponent>(entity);
@@ -370,16 +400,18 @@ public sealed class RacerCollisionSystem : BaseSystem<World, double>
 /// <summary>Tracks lap time and emits one-shot lap completion state.</summary>
 public sealed class RacerLapSystem : BaseSystem<World, double>
 {
+    private readonly Entity[] _scratch;
     private readonly Func<RacerSettings> _readSettings;
 
-    public RacerLapSystem(World world, Func<RacerSettings> readSettings) : base(world)
+    public RacerLapSystem(World world, Entity[] scratch, Func<RacerSettings> readSettings) : base(world)
     {
+        _scratch = scratch;
         _readSettings = readSettings;
     }
 
     public override void Update(in double t)
     {
-        var entities = RacerEcsHelpers.Entities(World);
+        var entities = RacerEcsHelpers.Entities(World, _scratch);
         var player = RacerEcsHelpers.FindPlayer(World, entities);
         var statsEntity = RacerEcsHelpers.FindStats(World, entities);
         if (player == Entity.Null || statsEntity == Entity.Null) return;

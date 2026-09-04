@@ -138,6 +138,12 @@ public static partial class WasmInterop
     }
 
     [JSExport]
+    internal static void RacerSetInitialFastLapTime(float seconds)
+    {
+        _sims?.Racer.SetInitialFastLapTime(seconds);
+    }
+
+    [JSExport]
     internal static void RacerConfig(int lanes, float roadWidth, float cameraHeight, int drawDistance, float fieldOfView, float fogDensity, float resolutionScale)
     {
         _sims?.Racer.ApplyConfig(new RacerConfigRequest(lanes, roadWidth, cameraHeight, drawDistance, fieldOfView, fogDensity, resolutionScale));
