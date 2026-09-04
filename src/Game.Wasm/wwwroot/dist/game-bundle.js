@@ -1,9 +1,9 @@
 import { B as e, D as t, E as n, F as r, M as i, O as a, P as o, R as s, T as c, a as l, b as u, c as d, h as f, i as p, k as m, l as h, n as g, o as _, p as v, r as y, s as b, t as x, u as S, v as C, w, x as T, y as E, z as D } from "./Geometry-DYsNE2Rs.js";
 import { b as O, c as k, d as A, i as j, l as M, n as N, o as P, p as ee, r as F, s as I, t as L, x as R } from "./Filter-BsE1se_H.js";
-import { a as z, c as B, i as te, n as ne, o as V, r as re, s as H, t as ie } from "./getPo2TextureFromSource-BRMwBqWT.js";
-import { r as U, t as ae } from "./canvasUtils-CPkv009i.js";
-import { n as oe, t as W } from "./Cache-Bz6DDblo.js";
-import { d as se, f as G, i as ce, m as le, p as ue } from "./RenderTargetSystem-BdHBY0GA.js";
+import { a as z, c as B, i as te, n as ne, o as V, r as H, s as U, t as re } from "./getPo2TextureFromSource-BRMwBqWT.js";
+import { r as ie, t as W } from "./canvasUtils-CPkv009i.js";
+import { n as ae, t as G } from "./Cache-Bz6DDblo.js";
+import { d as oe, f as se, i as ce, m as le, p as ue } from "./RenderTargetSystem-BdHBY0GA.js";
 import { c as de, t as fe } from "./GraphicsContext-CzF_PbZG.js";
 import { a as pe, c as me, d as he, g as ge, i as _e, l as ve, o as ye, p as be, r as xe, s as Se, t as Ce, u as we } from "./GCManagedHash-CXwB9kU7.js";
 import { t as Te } from "./CanvasPool-CMynuo7E.js";
@@ -547,7 +547,7 @@ var ot = {
 			...e.defaultOptions,
 			...this.loadOptions,
 			...n || {}
-		}, c = 0, l = {}, u = te(t), d = oe(t, (e) => ({
+		}, c = 0, l = {}, u = te(t), d = ae(t, (e) => ({
 			alias: [e],
 			src: e,
 			data: {}
@@ -564,7 +564,7 @@ var ot = {
 		return await Promise.all(p), u ? l[d[0].src] : l;
 	}
 	async unload(e) {
-		let t = oe(e, (e) => ({
+		let t = ae(e, (e) => ({
 			alias: [e],
 			src: e
 		})).map(async (e) => {
@@ -709,10 +709,10 @@ var Dt = {
 				});
 				await c.load(), n.add(c), r.push(c);
 			}
-			return W.has(`${i}-and-url`) ? W.get(`${i}-and-url`).entries.push({
+			return G.has(`${i}-and-url`) ? G.get(`${i}-and-url`).entries.push({
 				url: e,
 				faces: r
-			}) : W.set(`${i}-and-url`, { entries: [{
+			}) : G.set(`${i}-and-url`, { entries: [{
 				url: e,
 				faces: r
 			}] }), r.length === 1 ? r[0] : r;
@@ -720,16 +720,16 @@ var Dt = {
 		return C("[loadWebFont] FontFace API is not supported. Skipping loading font"), null;
 	},
 	unload(e) {
-		let t = Array.isArray(e) ? e : [e], n = t[0].family, r = W.get(`${n}-and-url`), i = r.entries.find((e) => e.faces.some((e) => t.indexOf(e) !== -1));
+		let t = Array.isArray(e) ? e : [e], n = t[0].family, r = G.get(`${n}-and-url`), i = r.entries.find((e) => e.faces.some((e) => t.indexOf(e) !== -1));
 		i.faces = i.faces.filter((e) => t.indexOf(e) === -1), i.faces.length === 0 && (r.entries = r.entries.filter((e) => e !== i)), t.forEach((e) => {
 			v.get().getFontFaceSet().delete(e);
-		}), r.entries.length === 0 && W.remove(`${n}-and-url`);
+		}), r.entries.length === 0 && G.remove(`${n}-and-url`);
 	}
 };
 //#endregion
 //#region node_modules/pixi.js/lib/utils/network/getResolutionOfUrl.mjs
 function Ot(e, t = 1) {
-	let n = re.RETINA_PREFIX?.exec(e);
+	let n = H.RETINA_PREFIX?.exec(e);
 	return n ? parseFloat(n[1]) : t;
 }
 //#endregion
@@ -740,7 +740,7 @@ function kt(e, t, n) {
 		source: e,
 		label: n
 	}), i = () => {
-		delete t.promiseCache[n], W.has(n) && W.remove(n);
+		delete t.promiseCache[n], G.has(n) && G.remove(n);
 	};
 	return r.source.once("destroy", () => {
 		t.promiseCache[n] && (C("[Assets] A TextureSource managed by Assets was destroyed instead of unloaded! Use Assets.unload() instead of destroying the TextureSource."), i());
@@ -778,7 +778,7 @@ async function Nt(e, t, n, r) {
 	let o = t.data?.width ?? a.width, s = t.data?.height ?? a.height, c = t.data?.resolution || Ot(e), l = Math.ceil(o * c), u = Math.ceil(s * c), d = v.get().createCanvas(l, u), f = d.getContext("2d");
 	f.imageSmoothingEnabled = !0, f.imageSmoothingQuality = "high", f.drawImage(a, 0, 0, o * c, s * c);
 	let { parseAsGraphicsContext: p, ...m } = t.data ?? {};
-	return kt(new U({
+	return kt(new ie({
 		resource: d,
 		alphaMode: "premultiply-alpha-on-upload",
 		resolution: c,
@@ -913,7 +913,7 @@ var qt = {
 			r = v.get().createImage(), r.crossOrigin = this.config.crossOrigin, r.src = e, r.complete ? t(r) : (r.onload = () => {
 				t(r);
 			}, r.onerror = n);
-		}), kt(new U({
+		}), kt(new ie({
 			resource: r,
 			alphaMode: "premultiply-alpha-on-upload",
 			resolution: t.data?.resolution || Ot(e),
@@ -959,7 +959,7 @@ function $t(e, t = globalThis.location) {
 function en() {
 	let e = [], t = [];
 	for (let n of Jt) {
-		let r = H.MIME_TYPES[n.substring(1)] || `video/${n.substring(1)}`;
+		let r = U.MIME_TYPES[n.substring(1)] || `video/${n.substring(1)}`;
 		at(r) && (e.push(n), t.includes(r) || t.push(r));
 	}
 	return {
@@ -984,7 +984,7 @@ var tn = {
 	},
 	async load(e, t, n) {
 		let r = {
-			...H.defaultOptions,
+			...U.defaultOptions,
 			resolution: t.data?.resolution || Ot(e),
 			alphaMode: t.data?.alphaMode || await B(),
 			...t.data
@@ -1005,12 +1005,12 @@ var tn = {
 		else if (e.startsWith("data:")) s = e.slice(5, e.indexOf(";"));
 		else if (!e.startsWith("blob:")) {
 			let t = e.split("?")[0].slice(e.lastIndexOf(".") + 1).toLowerCase();
-			s = H.MIME_TYPES[t] || `video/${t}`;
+			s = U.MIME_TYPES[t] || `video/${t}`;
 		}
 		return o.src = e, s && (o.type = s), new Promise((a, s) => {
 			r.preload && !r.autoPlay && i.load(), i.addEventListener("canplay", c), i.addEventListener("error", l), o.addEventListener("error", l), i.appendChild(o);
 			async function c() {
-				let o = new H({
+				let o = new U({
 					...r,
 					resource: i
 				});
@@ -1034,7 +1034,7 @@ var tn = {
 	},
 	test: qt.test,
 	parse: (e) => ({
-		resolution: parseFloat(re.RETINA_PREFIX.exec(e)?.[1] ?? "1"),
+		resolution: parseFloat(H.RETINA_PREFIX.exec(e)?.[1] ?? "1"),
 		format: e.split(".").pop(),
 		src: e
 	})
@@ -1044,11 +1044,11 @@ var tn = {
 		priority: -2,
 		name: "resolveJson"
 	},
-	test: (e) => re.RETINA_PREFIX.test(e) && e.endsWith(".json"),
+	test: (e) => H.RETINA_PREFIX.test(e) && e.endsWith(".json"),
 	parse: nn.parse
 }, q = new class {
 	constructor() {
-		this._detections = [], this._initialized = !1, this.resolver = new re(), this.loader = new dt(), this.cache = W, this._backgroundLoader = new Qe(this.loader), this._backgroundLoader.active = !0, this.reset();
+		this._detections = [], this._initialized = !1, this.resolver = new H(), this.loader = new dt(), this.cache = G, this._backgroundLoader = new Qe(this.loader), this._backgroundLoader.active = !0, this.reset();
 	}
 	async init(e = {}) {
 		if (this._initialized) {
@@ -1077,7 +1077,7 @@ var tn = {
 	}
 	async load(e, t) {
 		this._initialized || await this.init();
-		let n = te(e), r = oe(e).map((e) => {
+		let n = te(e), r = ae(e).map((e) => {
 			if (typeof e != "string") {
 				let t = this.resolver.getAlias(e);
 				return t.some((e) => !this.resolver.hasKey(e)) && this.add(e), Array.isArray(t) ? t[0] : t;
@@ -1124,9 +1124,9 @@ var tn = {
 		this.resolver.reset(), this.loader.reset(), this.cache.reset(), this._initialized = !1;
 	}
 	get(e) {
-		if (typeof e == "string") return W.get(e);
+		if (typeof e == "string") return G.get(e);
 		let t = {};
-		for (let n = 0; n < e.length; n++) t[n] = W.get(e[n]);
+		for (let n = 0; n < e.length; n++) t[n] = G.get(e[n]);
 		return t;
 	}
 	async _mapLoadToResolve(e, t) {
@@ -1139,23 +1139,23 @@ var tn = {
 			let t = r[e.src], n = [e.src];
 			e.alias && n.push(...e.alias), n.forEach((e) => {
 				i[e] = t;
-			}), W.set(n, t);
+			}), G.set(n, t);
 		}), i;
 	}
 	async unload(e) {
 		this._initialized || await this.init();
-		let t = oe(e).map((e) => typeof e == "string" ? e : e.src), n = this.resolver.resolve(t);
+		let t = ae(e).map((e) => typeof e == "string" ? e : e.src), n = this.resolver.resolve(t);
 		await this._unloadFromResolved(n);
 	}
 	async unloadBundle(e) {
-		this._initialized || await this.init(), e = oe(e);
+		this._initialized || await this.init(), e = ae(e);
 		let t = this.resolver.resolveBundle(e), n = Object.keys(t).map((e) => this._unloadFromResolved(t[e]));
 		await Promise.all(n);
 	}
 	async _unloadFromResolved(e) {
 		let t = Object.values(e);
 		t.forEach((e) => {
-			W.remove(e.src);
+			G.remove(e.src);
 		}), await this.loader.unload(t);
 	}
 	async _detectFormats(e) {
@@ -1658,7 +1658,7 @@ var yn = vn, bn = class {
 		if (!e.isRenderable) return;
 		e.state.blendMode = be(e.groupBlendMode, e.texture._source);
 		let t = this.localUniforms;
-		t.uniforms.uTransformMatrix = e.groupTransform, t.uniforms.uRound = this.renderer._roundPixels | e._roundPixels, t.update(), G(e.groupColorAlpha, t.uniforms.uColor, 0), this._adaptor.execute(this, e);
+		t.uniforms.uTransformMatrix = e.groupTransform, t.uniforms.uRound = this.renderer._roundPixels | e._roundPixels, t.update(), se(e.groupColorAlpha, t.uniforms.uColor, 0), this._adaptor.execute(this, e);
 	}
 	_getMeshData(e) {
 		var t, n;
@@ -1905,7 +1905,7 @@ var Cn = class extends I {
 			return;
 		}
 		r.globalAlpha = l;
-		let u = i & 16777215, d = a & 16777215, p = ee(f(d, u)), m = e.texture, h = ae.getTintedPattern(m, p), g = e.width, _ = e.height, v = e.groupTransform, y = m.source._resolution ?? m.source.resolution ?? 1;
+		let u = i & 16777215, d = a & 16777215, p = ee(f(d, u)), m = e.texture, h = W.getTintedPattern(m, p), g = e.width, _ = e.height, v = e.groupTransform, y = m.source._resolution ?? m.source.resolution ?? 1;
 		Dn.copyFrom(e._tileTransform.matrix), e.applyAnchorToTexture || Dn.translate(-e.anchor.x * g, -e.anchor.y * _);
 		let b = Dn.tx, x = Dn.ty;
 		Dn.scale(1 / y, 1 / y), Dn.tx = b, Dn.ty = x, En.identity(), En.prepend(Dn), En.prepend(v);
@@ -2132,7 +2132,7 @@ var zn = new Fn(), Bn = class {
 		let t = this._renderer, { shader: n } = this._getTilingSpriteData(e);
 		n.groups[0] = t.globalUniforms.bindGroup;
 		let r = n.resources.localUniforms.uniforms;
-		r.uTransformMatrix = e.groupTransform, r.uRound = t._roundPixels | e._roundPixels, G(e.groupColorAlpha, r.uColor, 0), this._state.blendMode = be(e.groupBlendMode, e.texture._source), t.encoder.draw({
+		r.uTransformMatrix = e.groupTransform, r.uRound = t._roundPixels | e._roundPixels, se(e.groupColorAlpha, r.uColor, 0), this._state.blendMode = be(e.groupBlendMode, e.texture._source), t.encoder.draw({
 			geometry: zn,
 			shader: n,
 			state: this._state
@@ -2190,7 +2190,7 @@ var Hn = class e extends I {
 	}
 	static from(t, n = {}) {
 		return typeof t == "string" ? new e({
-			texture: W.get(t),
+			texture: G.get(t),
 			...n
 		}) : new e({
 			texture: t,
@@ -2597,7 +2597,7 @@ function tr(e, t) {
 }
 //#endregion
 //#region node_modules/pixi.js/lib/scene/text/canvas/BatchableText.mjs
-var nr = class extends se {}, rr = class {
+var nr = class extends oe {}, rr = class {
 	constructor(e) {
 		this._renderer = e, e.runners.resolutionChange.add(this), this._managedTexts = new Ce({
 			renderer: e,
@@ -2678,7 +2678,7 @@ var ir = class {
 			text: i,
 			style: o,
 			resolution: u
-		}), p = ie(f.canvas, d.width, d.height, u, l);
+		}), p = re(f.canvas, d.width, d.height, u, l);
 		if (s && (p.source.style = s), o.trim && (d.pad(o.padding), p.frame.copyFrom(d), p.frame.scale(1 / u), p.updateUvs()), o.filters) {
 			let e = this._applyFilters(p, o.filters);
 			return this.returnTexture(p), er.returnCanvasAndContext(f), e;
@@ -2836,7 +2836,7 @@ var J = class extends Wn {
 		return e._gpuData[this._renderer.uid] = t, this._updateContext(e, t), this._managedBitmapTexts.add(e), t;
 	}
 	_updateDistanceField(e) {
-		let t = this._getGpuBitmapText(e).context, n = e._style.fontFamily, r = W.get(`${n}-bitmap`), { a: i, b: a, c: o, d: s } = e.groupTransform, c = Math.sqrt(i * i + a * a), l = Math.sqrt(o * o + s * s), u = (Math.abs(c) + Math.abs(l)) / 2, d = r.baseRenderedFontSize / e._style.fontSize, f = u * r.distanceField.range * (1 / d);
+		let t = this._getGpuBitmapText(e).context, n = e._style.fontFamily, r = G.get(`${n}-bitmap`), { a: i, b: a, c: o, d: s } = e.groupTransform, c = Math.sqrt(i * i + a * a), l = Math.sqrt(o * o + s * s), u = (Math.abs(c) + Math.abs(l)) / 2, d = r.baseRenderedFontSize / e._style.fontSize, f = u * r.distanceField.range * (1 / d);
 		t.customShader.resources.localUniforms.uniforms.uDistance = f;
 	}
 	destroy() {
@@ -3065,7 +3065,7 @@ var Cr = Sr, wr = class {
 			let o = t.color, s = (o >>> 24 & 255) / 255 * c;
 			if (s <= 0) continue;
 			let l = o & 16777215, u = ((l & 255) << 16) + (l & 65280) + (l >> 16 & 255), d = n.source.resource;
-			u !== 16777215 && (d = ae.getTintedCanvas({ texture: n }, u));
+			u !== 16777215 && (d = W.getTintedCanvas({ texture: n }, u));
 			let f = n.frame, p = n.source.resolution, m = f.x * p, h = f.y * p, g = f.width * p, _ = f.height * p;
 			r.globalAlpha = s;
 			let v = -t.anchorX * f.width, y = -t.anchorY * f.height;
@@ -3270,7 +3270,7 @@ var Ar = "varying vec2 vUV;\nvarying vec4 vColor;\n\nuniform sampler2D uTexture;
 		let a = this.localUniforms.uniforms, o = a.uTranslationMatrix;
 		e.worldTransform.copyTo(o);
 		let s = n.globalUniforms.globalUniformData;
-		o.tx -= s.offset.x, o.ty -= s.offset.y, o.prepend(s.projectionMatrix), a.uResolution = s.resolution, a.uRound = n._roundPixels | e._roundPixels, G(e.groupColorAlpha, a.uColor, 0), this.adaptor.execute(this, e);
+		o.tx -= s.offset.x, o.ty -= s.offset.y, o.prepend(s.projectionMatrix), a.uResolution = s.resolution, a.uRound = n._roundPixels | e._roundPixels, se(e.groupColorAlpha, a.uColor, 0), this.adaptor.execute(this, e);
 	}
 	destroy() {
 		this._managedContainers.destroy(), this.renderer = null, this.defaultShader &&= (this.defaultShader.destroy(), null);
@@ -3878,10 +3878,10 @@ function Ji(e, t, n, r, i, a, o, s, c) {
 	C < 0 && (C = 0);
 	let w = (a === o ? -1 : 1) * qi(C), T = w * (n * _ / r), E = w * -(r * g / n), D = (e + s) / 2, O = (t + c) / 2, k = D + (u * T - d * E), A = O + (d * T + u * E), j = (g - T) / n, M = (_ - E) / r, N = (-g - T) / n, P = (-_ - E) / r, ee = j * j + M * M, F = (M < 0 ? -1 : 1) * Math.acos(j / qi(ee)), I = (j * P - M * N < 0 ? -1 : 1) * Math.acos((j * N + M * P) / qi(ee * (N * N + P * P)));
 	Number.isNaN(I) && (I = f), !o && I > 0 ? I -= p : o && I < 0 && (I += p), F %= p, I %= p;
-	let L = Math.ceil(Ki(I) / (p / 4)), R = [], z = I / L, B = 4 / 3 * Wi(z / 2) / (1 + Gi(z / 2)), te = u * n, ne = d * n, V = d * -r, re = u * r, H;
-	for (H = 0; H < L; H++) i = F + H * z, g = Gi(i), _ = Wi(i), j = Gi(i += z), M = Wi(i), R.push(g - B * _, _ + B * g, j + B * M, M - B * j, j, M);
-	for (H = 0; H < R.length; H += 2) g = R[H], _ = R[H + 1], R[H] = g * te + _ * V + k, R[H + 1] = g * ne + _ * re + A;
-	return R[H - 2] = s, R[H - 1] = c, R;
+	let L = Math.ceil(Ki(I) / (p / 4)), R = [], z = I / L, B = 4 / 3 * Wi(z / 2) / (1 + Gi(z / 2)), te = u * n, ne = d * n, V = d * -r, H = u * r, U;
+	for (U = 0; U < L; U++) i = F + U * z, g = Gi(i), _ = Wi(i), j = Gi(i += z), M = Wi(i), R.push(g - B * _, _ + B * g, j + B * M, M - B * j, j, M);
+	for (U = 0; U < R.length; U += 2) g = R[U], _ = R[U + 1], R[U] = g * te + _ * V + k, R[U + 1] = g * ne + _ * H + A;
+	return R[U - 2] = s, R[U - 1] = c, R;
 }
 function Yi(e) {
 	let t = `${e}`.replace(Hi, (e) => {
@@ -6271,7 +6271,7 @@ var $o = (e, t, n) => {
 			width: 2,
 			color: n
 		});
-	}, re = (e, t, n) => {
+	}, H = (e, t, n) => {
 		let r = Math.cos(t.rotation), i = Math.sin(t.rotation), a = [];
 		for (let [e, n] of zo) {
 			let [o, s] = qo(e, n, r, i);
@@ -6281,20 +6281,20 @@ var $o = (e, t, n) => {
 			width: 2,
 			color: n
 		});
-	}, H = (e, t, n) => {
+	}, U = (e, t, n) => {
 		let r = Math.cos(t.rotation), i = Math.sin(t.rotation), [a, o] = qo(0, -8, r, i), [s, c] = qo(0, 8, r, i);
 		e.moveTo(t.x - a, t.y - o).lineTo(t.x + s, t.y + c).stroke({
 			width: 2,
 			color: n
 		});
-	}, ie = (e, t, n) => {
+	}, re = (e, t, n) => {
 		let r = Math.max(0, Math.min(1, t.size)), i = 8 + r * 44;
 		e.circle(t.x, t.y, i).stroke({
 			width: 2,
 			color: n,
 			alpha: 1 - r * .9
 		});
-	}, U = (e) => {
+	}, ie = (e) => {
 		O = null, c.clear();
 		for (let t of E.values()) {
 			let { previous: n, current: r } = t, o = Ao(n.x, r.x, e, i), s = Ao(n.y, r.y, e, a), l = ko(n.rotation, r.rotation, e), u = r.r << 16 | r.g << 8 | r.b, d = {
@@ -6314,19 +6314,19 @@ var $o = (e, t, n) => {
 					c.circle(o, s, 2.5).fill(u);
 					break;
 				case Fo:
-					re(c, d, u);
-					break;
-				case Io:
 					H(c, d, u);
 					break;
-				case Lo: ie(c, d, u);
+				case Io:
+					U(c, d, u);
+					break;
+				case Lo: re(c, d, u);
 			}
 		}
-	}, ae = (e, t, n, r, i) => {
+	}, W = (e, t, n, r, i) => {
 		l.text = `SCORE: ${String(e).padStart(6, "0")}`, u.text = `HI: ${String(t).padStart(6, "0")}`, d.text = "^".repeat(Math.max(0, n - 1)), v = e, y = t, b = n, _ = r, g = i, _ && !S && (Go("game ended (ECS signal) - score", v), Uo("asteroids-endgame", "asteroids-explode3.wav")), S = _, w();
 	};
-	E.ingest((r.sprites ?? []).filter(Zo)), ae(v, y, b, _, g);
-	let oe = !1, W = !1, se = !1, G = (e, t, n, r, i) => {
+	E.ingest((r.sprites ?? []).filter(Zo)), W(v, y, b, _, g);
+	let ae = !1, G = !1, oe = !1, se = (e, t, n, r, i) => {
 		C?.postCommand("/api/asteroids/input", JSON.stringify({
 			thrust: e,
 			left: t,
@@ -6336,29 +6336,29 @@ var $o = (e, t, n) => {
 		})).catch((e) => console.error("[pixi-debug] asteroids input failed:", e));
 	}, ce = (e) => {
 		if (e.key === " " || e.key === "Enter") {
-			e.preventDefault(), g && !_ ? e.key === " " && !e.repeat && G(oe, W, se, !0, !1) : T();
+			e.preventDefault(), g && !_ ? e.key === " " && !e.repeat && se(ae, G, oe, !0, !1) : T();
 			return;
 		}
 		if (e.key === "ArrowUp" || e.key === "w" || e.key === "W") {
-			e.preventDefault(), oe = !0, G(!0, W, se, !1, !1);
+			e.preventDefault(), ae = !0, se(!0, G, oe, !1, !1);
 			return;
 		}
 		if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") {
-			e.preventDefault(), W = !0, G(oe, !0, se, !1, !1);
+			e.preventDefault(), G = !0, se(ae, !0, oe, !1, !1);
 			return;
 		}
 		if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") {
-			e.preventDefault(), se = !0, G(oe, W, !0, !1, !1);
+			e.preventDefault(), oe = !0, se(ae, G, !0, !1, !1);
 			return;
 		}
-		(e.key === "h" || e.key === "H") && (e.preventDefault(), e.repeat || G(oe, W, se, !1, !0));
+		(e.key === "h" || e.key === "H") && (e.preventDefault(), e.repeat || se(ae, G, oe, !1, !0));
 	}, le = (e) => {
-		e.key === "ArrowUp" || e.key === "w" || e.key === "W" ? (oe = !1, G(!1, W, se, !1, !1)) : e.key === "ArrowLeft" || e.key === "a" || e.key === "A" ? (W = !1, G(oe, !1, se, !1, !1)) : (e.key === "ArrowRight" || e.key === "d" || e.key === "D") && (se = !1, G(oe, W, !1, !1, !1));
+		e.key === "ArrowUp" || e.key === "w" || e.key === "W" ? (ae = !1, se(!1, G, oe, !1, !1)) : e.key === "ArrowLeft" || e.key === "a" || e.key === "A" ? (G = !1, se(ae, !1, oe, !1, !1)) : (e.key === "ArrowRight" || e.key === "d" || e.key === "D") && (oe = !1, se(ae, G, !1, !1, !1));
 	};
 	window.addEventListener("keydown", ce), window.addEventListener("keyup", le);
 	let ue = (e) => {
 		let t = jo(e.deltaMS), n = E.advance(D);
-		if (n !== null && U(n), N) {
+		if (n !== null && ie(n), N) {
 			let e = O;
 			if (e && x && g && !_) {
 				let t = e.x - Math.sin(e.rotation) * 14, n = e.y + Math.cos(e.rotation) * 14;
@@ -6398,7 +6398,7 @@ var $o = (e, t, n) => {
 				}
 				A = e.epoch;
 			}
-			if (E.ingest(e.sprites, e.seq, e.epoch), ae(e.score, e.highScore, e.lives, e.gameOver, e.started), e.exploded) for (let t of e.sprites) t.kind !== Lo || ee.has(t.id) || (ee.add(t.id), F(t.x, t.y), te(t.x, t.y), Uo(`asteroids-explode${1 + Math.floor(Math.random() * 3)}`, `asteroids-explode${1 + Math.floor(Math.random() * 3)}.wav`));
+			if (E.ingest(e.sprites, e.seq, e.epoch), W(e.score, e.highScore, e.lives, e.gameOver, e.started), e.exploded) for (let t of e.sprites) t.kind !== Lo || ee.has(t.id) || (ee.add(t.id), F(t.x, t.y), te(t.x, t.y), Uo(`asteroids-explode${1 + Math.floor(Math.random() * 3)}`, `asteroids-explode${1 + Math.floor(Math.random() * 3)}.wav`));
 			e.fired && Uo("asteroids-fire", "asteroids-fire.wav"), e.saucerSpawned && (Go("ECS event: saucer spawned"), Uo("asteroids-ssaucer", "asteroids-ssaucer.wav")), e.lifeGained && (Go("ECS event: extra ship"), Uo("asteroids-life", "asteroids-life.wav")), e.levelUp && (Go("ECS event: new belt, level", e.level), Uo("asteroids-thumphi", "asteroids-thumphi.wav")), e.thrustOn !== x && (x = e.thrustOn, Wo("asteroids-thrust", "asteroids-thrust.wav", x));
 		} catch (e) {
 			console.error("[pixi-debug] asteroids-move apply failed:", e);
@@ -7134,7 +7134,289 @@ var Qs = (e, t, n) => {
 	return e.ticker.add(s), () => {
 		e.ticker.remove(s), a.destroy();
 	};
-}, ec = "racer-fast-lap", tc = 180, nc = 0, rc = 1, ic = 2, ac = 3, $ = {
+}, ec = "@group(0) @binding(0) var<uniform> uColors: array<vec4<f32>, 4>;\n@group(0) @binding(1) var<uniform> uFogParams: vec4<f32>; // fogDensity, drawDistance, cameraDepth, cameraY\n\nstruct InstanceInput {\n    @location(0) aPosition: vec2<f32>,      // base quad position (-1,-1) to (1,1)\n    @location(1) aSegmentId: u32,           // segment index\n    @location(2) aOffsetX: f32,             // horizontal offset\n    @location(3) aScale: f32,               // perspective scale\n    @location(4) aColorIndex: u32,          // 0=grass, 1=rumble, 2=road, 3=lane\n    @location(5) aY1: f32,                  // segment start Y\n    @location(6) aY2: f32,                  // segment end Y\n    @location(7) aCurve: f32,               // curve amount\n    @location(8) aClipY: f32,               // clip Y (maxY from previous segment)\n}\n\nstruct VertexOutput {\n    @builtin(position) position: vec4<f32>,\n    @location(0) vColor: vec4<f32>,\n    @location(1) vFog: f32,\n    @location(2) vClipY: f32,\n}\n\n@vertex\nfn vs_main(\n    model: VertexOutput,\n    instance: InstanceInput,\n    @builtin(vertex_index) vertexIndex: u32,\n    @builtin(instance_index) instanceIndex: u32,\n) -> VertexOutput {\n    let pos = instance.aPosition;\n    let scale = instance.aScale;\n    let offsetX = instance.aOffsetX;\n    let y1 = instance.aY1;\n    let y2 = instance.aY2;\n    let clipY = instance.aClipY;\n    \n    // Interpolate Y based on vertex position (bottom vertices use y1, top use y2)\n    let y = mix(y1, y2, (pos.y + 1.0) * 0.5);\n    \n    // Apply perspective scaling and offset\n    let worldX = offsetX + pos.x * scale;\n    let worldY = y;\n    \n    // Clip against maxY (hill occlusion)\n    let clipped = worldY < clipY ? 1.0 : 0.0;\n    \n    // Fog calculation\n    let fogDensity = uFogParams.x;\n    let drawDistance = uFogParams.y;\n    let depth = (instance.aSegmentId as f32) / drawDistance;\n    let fog = 1.0 - exp(-fogDensity * depth * depth);\n    \n    var output: VertexOutput;\n    output.position = vec4<f32>(worldX, worldY, 0.0, 1.0);\n    output.vColor = uColors[instance.aColorIndex];\n    output.vFog = fog;\n    output.vClipY = clipY;\n    return output;\n}\n\n@fragment\nfn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {\n    // Apply fog\n    let color = mix(input.vColor, vec4<f32>(0.0, 0.3, 0.05, 1.0), input.vFog);\n    return color;\n}", tc = "varying vec4 vColor;\nvarying float vFog;\nvarying float vClipY;\n\nvoid main() {\n    // Apply fog\n    vec4 color = mix(vColor, vec4(0.0, 0.3, 0.05, 1.0), vFog);\n    gl_FragColor = color;\n}", nc = "uniform vec4 uColors[4];\nuniform vec4 uFogParams; // fogDensity, drawDistance, cameraDepth, cameraY\n\nattribute vec2 aPosition;        // base quad position (-1,-1) to (1,1)\nattribute uint aSegmentId;       // segment index\nattribute float aOffsetX;        // horizontal offset\nattribute float aScale;          // perspective scale\nattribute uint aColorIndex;      // 0=grass, 1=rumble, 2=road, 3=lane\nattribute float aY1;             // segment start Y\nattribute float aY2;             // segment end Y\nattribute float aCurve;          // curve amount\nattribute float aClipY;          // clip Y (maxY from previous segment)\n\nvarying vec4 vColor;\nvarying float vFog;\nvarying float vClipY;\n\nvoid main() {\n    vec2 pos = aPosition;\n    float scale = aScale;\n    float offsetX = aOffsetX;\n    float y1 = aY1;\n    float y2 = aY2;\n    float clipY = aClipY;\n    \n    // Interpolate Y based on vertex position\n    float y = mix(y1, y2, (pos.y + 1.0) * 0.5);\n    \n    // Apply perspective scaling and offset\n    float worldX = offsetX + pos.x * scale;\n    float worldY = y;\n    \n    // Fog calculation\n    float fogDensity = uFogParams.x;\n    float drawDistance = uFogParams.y;\n    float depth = float(aSegmentId) / drawDistance;\n    float fog = 1.0 - exp(-fogDensity * depth * depth);\n    \n    vColor = uColors[int(aColorIndex)];\n    vFog = fog;\n    vClipY = clipY;\n    \n    gl_Position = vec4(worldX, worldY, 0.0, 1.0);\n}", rc = {
+	0: {
+		road: 7039851,
+		grass: 1092112,
+		rumble: 5592405,
+		lane: 13421772
+	},
+	1: {
+		road: 6908265,
+		grass: 39424,
+		rumble: 12303291,
+		lane: null
+	},
+	2: {
+		road: 16777215,
+		grass: 16777215,
+		rumble: 16777215,
+		lane: null
+	},
+	3: {
+		road: 0,
+		grass: 0,
+		rumble: 0,
+		lane: null
+	}
+}, ic = 0, ac = class {
+	mesh;
+	geometry;
+	maxSegments;
+	quadsPerSegment;
+	totalInstances;
+	instanceSegmentId;
+	instanceOffsetX;
+	instanceScale;
+	instanceColorIndex;
+	instanceY1;
+	instanceY2;
+	instanceCurve;
+	instanceClipY;
+	colorUniform;
+	fogUniform;
+	constructor(e, t = 400) {
+		this.maxSegments = t, this.quadsPerSegment = 4, this.totalInstances = t * this.quadsPerSegment, this.instanceSegmentId = new Uint32Array(this.totalInstances), this.instanceOffsetX = new Float32Array(this.totalInstances), this.instanceScale = new Float32Array(this.totalInstances), this.instanceColorIndex = new Uint32Array(this.totalInstances), this.instanceY1 = new Float32Array(this.totalInstances), this.instanceY2 = new Float32Array(this.totalInstances), this.instanceCurve = new Float32Array(this.totalInstances), this.instanceClipY = new Float32Array(this.totalInstances), this.colorUniform = /* @__PURE__ */ new Float32Array(16), this.fogUniform = /* @__PURE__ */ new Float32Array(4), this.geometry = this.createGeometry(e);
+		let n = this.createShader(e);
+		this.mesh = new Cn({
+			geometry: this.geometry,
+			shader: n
+		});
+	}
+	createGeometry(e) {
+		let t = new Float32Array([
+			-1,
+			-1,
+			1,
+			-1,
+			1,
+			1,
+			-1,
+			1
+		]), n = new Float32Array([
+			0,
+			1,
+			1,
+			1,
+			1,
+			0,
+			0,
+			0
+		]), r = new Uint16Array([
+			0,
+			1,
+			2,
+			2,
+			3,
+			0
+		]);
+		return new yn({
+			attributes: {
+				aPosition: {
+					data: t,
+					format: "float32x2"
+				},
+				aUV: {
+					data: n,
+					format: "float32x2"
+				},
+				aSegmentId: {
+					data: this.instanceSegmentId,
+					format: "uint32",
+					instanceDivisor: 1
+				},
+				aOffsetX: {
+					data: this.instanceOffsetX,
+					format: "float32",
+					instanceDivisor: 1
+				},
+				aScale: {
+					data: this.instanceScale,
+					format: "float32",
+					instanceDivisor: 1
+				},
+				aColorIndex: {
+					data: this.instanceColorIndex,
+					format: "uint32",
+					instanceDivisor: 1
+				},
+				aY1: {
+					data: this.instanceY1,
+					format: "float32",
+					instanceDivisor: 1
+				},
+				aY2: {
+					data: this.instanceY2,
+					format: "float32",
+					instanceDivisor: 1
+				},
+				aCurve: {
+					data: this.instanceCurve,
+					format: "float32",
+					instanceDivisor: 1
+				},
+				aClipY: {
+					data: this.instanceClipY,
+					format: "float32",
+					instanceDivisor: 1
+				}
+			},
+			index: {
+				data: r,
+				format: "uint16"
+			},
+			instanced: !0,
+			instanceCount: this.totalInstances
+		});
+	}
+	createShader(e) {
+		return e.renderer.type === "webgpu" ? p.from({
+			gpu: {
+				vertex: ec,
+				fragment: tc
+			},
+			resources: {
+				uColors: {
+					type: "uniforms",
+					value: this.colorUniform
+				},
+				uFogParams: {
+					type: "uniforms",
+					value: this.fogUniform
+				}
+			}
+		}) : p.from({
+			gl: {
+				vertex: nc,
+				fragment: tc
+			},
+			resources: {
+				uColors: {
+					type: "uniforms",
+					value: this.colorUniform
+				},
+				uFogParams: {
+					type: "uniforms",
+					value: this.fogUniform
+				}
+			}
+		});
+	}
+	hexToVec4(e) {
+		return [
+			(e >> 16 & 255) / 255,
+			(e >> 8 & 255) / 255,
+			(e & 255) / 255,
+			1
+		];
+	}
+	update(e) {
+		let { playerX: t, playerZ: n, cameraY: r, cameraDepth: i, width: a, height: o, roadWidth: s, drawDistance: c, fogDensity: l, segments: u, normalizedBaseIndex: d, x: f, dx: p } = e, m = 0, h = f, g = p, _ = o;
+		this.fogUniform[0] = l, this.fogUniform[1] = c, this.fogUniform[2] = i, this.fogUniform[3] = r;
+		let v = rc[ic], y = this.hexToVec4(v.grass), b = this.hexToVec4(v.rumble), x = this.hexToVec4(v.road), S = v.lane ?? v.road, C = this.hexToVec4(S);
+		this.colorUniform[0] = y[0], this.colorUniform[1] = y[1], this.colorUniform[2] = y[2], this.colorUniform[3] = y[3], this.colorUniform[4] = b[0], this.colorUniform[5] = b[1], this.colorUniform[6] = b[2], this.colorUniform[7] = b[3], this.colorUniform[8] = x[0], this.colorUniform[9] = x[1], this.colorUniform[10] = x[2], this.colorUniform[11] = x[3], this.colorUniform[12] = C[0], this.colorUniform[13] = C[1], this.colorUniform[14] = C[2], this.colorUniform[15] = C[3];
+		for (let e = 0; e < c && m < this.totalInstances; e++) {
+			let c = u[(d + e) % u.length];
+			if (!c) continue;
+			let l = c.index < d, f = c.index * 200, p = f - (l ? u.length * 200 : 0) - n, v = f + 200 - (l ? u.length * 200 : 0) - n;
+			if (p <= i) continue;
+			let y = i / p, b = i / v;
+			a / 2 + y * (t - h) * a / 2, a / 2 + b * (t - h - g) * a / 2;
+			let x = o / 2 - y * (c.p1WorldY - r) * o / 2, S = o / 2 - b * (c.p2WorldY - r) * o / 2;
+			if (S >= x || S >= _) continue;
+			_ = x;
+			let C = y * s * a / 2, w = b * s * a / 2, T = C / 6, E = w / 6, D = (C + w) / 2, O = (T + E) / 2;
+			x - S > 0 && m < this.totalInstances && (this.instanceSegmentId[m] = c.index, this.instanceOffsetX[m] = 0, this.instanceScale[m] = D, this.instanceColorIndex[m] = 0, this.instanceY1[m] = S, this.instanceY2[m] = x, this.instanceCurve[m] = c.curve, this.instanceClipY[m] = _, m++), m < this.totalInstances && (this.instanceSegmentId[m] = c.index, this.instanceOffsetX[m] = -D - O, this.instanceScale[m] = O, this.instanceColorIndex[m] = 1, this.instanceY1[m] = S, this.instanceY2[m] = x, this.instanceCurve[m] = c.curve, this.instanceClipY[m] = _, m++), m < this.totalInstances && (this.instanceSegmentId[m] = c.index, this.instanceOffsetX[m] = D + O, this.instanceScale[m] = O, this.instanceColorIndex[m] = 1, this.instanceY1[m] = S, this.instanceY2[m] = x, this.instanceCurve[m] = c.curve, this.instanceClipY[m] = _, m++), m < this.totalInstances && (this.instanceSegmentId[m] = c.index, this.instanceOffsetX[m] = 0, this.instanceScale[m] = D, this.instanceColorIndex[m] = 2, this.instanceY1[m] = S, this.instanceY2[m] = x, this.instanceCurve[m] = c.curve, this.instanceClipY[m] = _, m++), h += g, g += c.curve;
+		}
+		for (let e = m; e < this.totalInstances; e++) this.instanceScale[e] = 0;
+		this.geometry.getBuffer("aSegmentId").update(this.instanceSegmentId), this.geometry.getBuffer("aOffsetX").update(this.instanceOffsetX), this.geometry.getBuffer("aScale").update(this.instanceScale), this.geometry.getBuffer("aColorIndex").update(this.instanceColorIndex), this.geometry.getBuffer("aY1").update(this.instanceY1), this.geometry.getBuffer("aY2").update(this.instanceY2), this.geometry.getBuffer("aCurve").update(this.instanceCurve), this.geometry.getBuffer("aClipY").update(this.instanceClipY), this.geometry.instanceCount = m;
+	}
+	getMesh() {
+		return this.mesh;
+	}
+	destroy() {
+		this.mesh.destroy(), this.geometry.destroy();
+	}
+}, oc = "struct FogParams {\n    fogDensity: f32,\n    drawDistance: f32,\n    cameraDepth: f32,\n    cameraY: f32,\n    playerZ: f32,\n    segmentLength: f32,\n    _pad1: f32,\n    _pad2: f32,\n}\n\n@group(0) @binding(0) var<uniform> uFogParams: FogParams;\n\n@vertex\nfn vs_main(\n    @location(0) aPosition: vec2<f32>,\n    @location(1) aUV: vec2<f32>,\n    @builtin(vertex_index) vertexIndex: u32,\n) -> @builtin(position) vec4<f32> {\n    return vec4<f32>(aPosition, 0.0, 1.0);\n}\n\n@fragment\nfn fs_main(\n    @builtin(position) position: vec4<f32>,\n) -> @location(0) vec4<f32> {\n    // Screen-space fog based on depth\n    // For a full-screen quad, we can compute fog based on vertical position\n    // Bottom of screen = near, top of screen = far\n    let ndcY = position.y; // -1 to 1\n    let screenDepth = (1.0 - ndcY) * 0.5; // 0 at top (far), 1 at bottom (near)\n    \n    // Exponential fog\n    let fog = 1.0 - exp(-uFogParams.fogDensity * screenDepth * screenDepth);\n    \n    // Fog color: dark green\n    let fogColor = vec4<f32>(0.0, 0.3, 0.05, 1.0);\n    \n    return vec4<f32>(fogColor.rgb, fog);\n}", sc = "uniform float uFogDensity;\nuniform float uDrawDistance;\nuniform float uCameraDepth;\nuniform float uCameraY;\nuniform float uPlayerZ;\nuniform float uSegmentLength;\n\nvarying vec2 vUV;\n\nvoid main() {\n    // Screen-space fog based on vertical position\n    // vUV.y goes from 0 (top) to 1 (bottom)\n    float screenDepth = 1.0 - vUV.y; // 0 at top (far), 1 at bottom (near)\n    \n    // Exponential fog\n    float fog = 1.0 - exp(-uFogDensity * screenDepth * screenDepth);\n    \n    // Fog color: dark green\n    vec3 fogColor = vec3(0.0, 0.3, 0.05);\n    \n    gl_FragColor = vec4(fogColor, fog);\n}", cc = "attribute vec2 aPosition;\nattribute vec2 aUV;\n\nvarying vec2 vUV;\n\nvoid main() {\n    vUV = aUV;\n    gl_Position = vec4(aPosition, 0.0, 1.0);\n}", lc = class {
+	mesh;
+	geometry;
+	shader;
+	uniformBuffer;
+	constructor(e) {
+		let t = new Float32Array([
+			-1,
+			-1,
+			1,
+			-1,
+			1,
+			1,
+			-1,
+			1
+		]), n = new Float32Array([
+			0,
+			1,
+			1,
+			1,
+			1,
+			0,
+			0,
+			0
+		]), r = new Uint16Array([
+			0,
+			1,
+			2,
+			2,
+			3,
+			0
+		]);
+		this.geometry = new yn({
+			attributes: {
+				aPosition: {
+					data: t,
+					format: "float32x2"
+				},
+				aUV: {
+					data: n,
+					format: "float32x2"
+				}
+			},
+			index: {
+				data: r,
+				format: "uint16"
+			}
+		}), this.uniformBuffer = /* @__PURE__ */ new Float32Array(6), this.shader = e.renderer.type === "webgpu" ? p.from({
+			gpu: {
+				vertex: oc,
+				fragment: sc
+			},
+			resources: { uFogParams: {
+				type: "uniforms",
+				value: this.uniformBuffer
+			} }
+		}) : p.from({
+			gl: {
+				vertex: cc,
+				fragment: sc
+			},
+			resources: { uFogParams: {
+				type: "uniforms",
+				value: this.uniformBuffer
+			} }
+		}), this.mesh = new Cn({
+			geometry: this.geometry,
+			shader: this.shader
+		});
+	}
+	update(e) {
+		this.uniformBuffer[0] = e.fogDensity, this.uniformBuffer[1] = e.drawDistance, this.uniformBuffer[2] = e.cameraDepth, this.uniformBuffer[3] = e.cameraY, this.uniformBuffer[4] = e.playerZ, this.uniformBuffer[5] = e.segmentLength;
+	}
+	getMesh() {
+		return this.mesh;
+	}
+	destroy() {
+		this.mesh.destroy(), this.geometry.destroy();
+	}
+}, uc = "racer-fast-lap", dc = 180, $ = {
 	PALM_TREE: 0,
 	BILLBOARD08: 1,
 	TREE1: 2,
@@ -7169,7 +7451,7 @@ var Qs = (e, t, n) => {
 	PLAYER_LEFT: 31,
 	PLAYER_STRAIGHT: 32,
 	PLAYER_RIGHT: 33
-}, oc = {
+}, fc = {
 	[$.PALM_TREE]: {
 		x: 5,
 		y: 5,
@@ -7374,7 +7656,7 @@ var Qs = (e, t, n) => {
 		w: 80,
 		h: 41
 	}
-}, sc = {
+}, pc = {
 	lanes: 3,
 	roadWidth: 2e3,
 	cameraHeight: 1e3,
@@ -7382,35 +7664,10 @@ var Qs = (e, t, n) => {
 	fieldOfView: 100,
 	fogDensity: 5,
 	resolutionScale: 1
-}, cc = {
-	[nc]: {
-		road: 7039851,
-		grass: 1092112,
-		rumble: 5592405,
-		lane: 13421772
-	},
-	[rc]: {
-		road: 6908265,
-		grass: 39424,
-		rumble: 12303291,
-		lane: null
-	},
-	[ic]: {
-		road: 16777215,
-		grass: 16777215,
-		rumble: 16777215,
-		lane: null
-	},
-	[ac]: {
-		road: 0,
-		grass: 0,
-		rumble: 0,
-		lane: null
-	}
-}, lc = .001, uc = .002, dc = .003, fc = .3 / 80, pc = "racer-music", mc = "./games/racer/racer.mp3", hc = (...e) => console.log("[pixi-debug] racer:", ...e);
-function gc() {
+}, mc = .001, hc = .002, gc = .003, _c = .3 / 80, vc = "racer-music", yc = "./games/racer/racer.mp3", bc = (...e) => console.log("[pixi-debug] racer:", ...e);
+function xc() {
 	try {
-		let e = globalThis.localStorage?.getItem(ec);
+		let e = globalThis.localStorage?.getItem(uc);
 		if (!e) return 0;
 		let t = Number.parseFloat(e);
 		return Number.isFinite(t) && t > 0 ? t : 0;
@@ -7418,34 +7675,34 @@ function gc() {
 		return 0;
 	}
 }
-function _c(e) {
+function Sc(e) {
 	try {
-		globalThis.localStorage?.setItem(ec, e.toString());
+		globalThis.localStorage?.setItem(uc, e.toString());
 	} catch {}
 }
-function vc(e) {
+function Cc(e) {
 	if (!e || typeof e != "object") return !1;
 	let t = e;
 	return typeof t.seq == "number" && typeof t.entityCount == "number" && typeof t.tickMs == "number" && typeof t.player == "object" && Array.isArray(t.cars) && typeof t.settings == "object";
 }
-function yc(e, t, n) {
+function wc(e, t, n) {
 	return e + (t - e) * n;
 }
-function bc(e, t) {
+function Tc(e, t) {
 	let n = e % t;
 	return (n < 0 ? n + t : n) / t;
 }
-function xc(e, t, n) {
+function Ec(e, t, n) {
 	let r = e + t;
 	for (; r >= n;) r -= n;
 	for (; r < 0;) r += n;
 	return r;
 }
-function Sc(e) {
+function Dc(e) {
 	let t = Math.floor(e / 60), n = Math.floor(e - t * 60), r = Math.floor(10 * (e - Math.floor(e)));
 	return t > 0 ? `${t}.${n < 10 ? "0" : ""}${n}.${r}` : `${n}.${r}`;
 }
-var Cc = class {
+var Oc = class {
 	sprites = [];
 	cursor = 0;
 	container;
@@ -7461,10 +7718,10 @@ var Cc = class {
 	acquire(e, t, n, r, i) {
 		this.cursor >= this.sprites.length && this.createEntry();
 		let a = this.sprites[this.cursor];
-		this.cursor++, a.texture = e, a.x = t, a.y = n, a.width = r, a.height = i, a.visible = !0, a.alpha = 1, a.tint = 16777215;
+		this.cursor++, a.texture = e, a.x = t, a.y = n, a.scale.set(r, i), a.visible = !0, a.alpha = 1, a.tint = 16777215;
 	}
 	finish() {
-		for (let e = this.cursor; e < this.sprites.length; e++) this.sprites[e].visible = !1;
+		for (let e = 0; e < this.cursor; e++) this.sprites[e].visible = !1;
 		this.cursor = 0;
 	}
 	destroy() {
@@ -7472,7 +7729,7 @@ var Cc = class {
 		this.sprites.length = 0;
 	}
 };
-function wc(e, t, n) {
+function kc(e, t, n) {
 	let r = document.createElement("div");
 	r.style.cssText = "position:fixed;top:108px;right:12px;width:220px;padding:0.6rem;background:rgba(2,6,23,.9);border:1px solid rgba(148,163,184,.35);border-radius:.5rem;color:#cbd5e1;font:12px sans-serif;z-index:6;display:none;gap:.35rem;";
 	let i = document.createElement("strong");
@@ -7571,22 +7828,24 @@ function wc(e, t, n) {
 		}
 	};
 }
-var Tc = async (e, t, n) => {
-	let r = (t ?? {}).racer ?? {}, a = r.track ?? {}, o = a.segments ?? [], s = a.sprites ?? [], c = a.segmentLength ?? 200, l = a.trackLength ?? o.length * c, u = r.settings ?? sc, d = r.player ?? {
+var Ac = async (e, t, n) => {
+	let r = (t ?? {}).racer ?? {}, a = r.track ?? {}, o = a.segments ?? [], s = a.sprites ?? [], c = a.segmentLength ?? 200, l = a.trackLength ?? o.length * c, u = r.settings ?? pc, d = r.player ?? {
 		x: 0,
 		z: 0,
 		speed: 0,
 		currentLapTime: 0,
 		lastLapTime: 0,
-		fastLapTime: tc,
+		fastLapTime: dc,
 		lap: 0,
 		steer: 0,
 		uphill: !1
-	}, f = r.cars ?? [], p = 0, m = 0, h = 0, g = d.z, _ = 1e3 / 60, v = !1, y = new Do(), b = new Do(), x = null, S = -1, C = gc();
+	}, f = r.cars ?? [], p = 0, m = 0, h = 0, g = d.z, _ = 1e3 / 60, v = !1, y = new Do(), b = new Do(), x = null, S = -1, C = xc();
 	C > 0 && (Jr()?.setupRacerInitialFastLap?.(C), S = C), e.renderer.background.color = "#72d7ee";
-	let [w, E] = await Promise.all([q.load("./games/racer/sprites.png"), q.load("./games/racer/background.png")]), D = new k(), O = new K(), A = new k(), j = new k(), M = new k();
-	D.addChild(A, O, j, M), n.root.addChild(D);
-	let N = [
+	let [w, E] = await Promise.all([q.load("./games/racer/sprites.png"), q.load("./games/racer/background.png")]), D = new k(), O = new ac(e, 400), A = new k(), j = new k(), M = new k();
+	D.addChild(A, O.getMesh(), j, M);
+	let N = new lc(e);
+	D.addChild(N.getMesh()), n.root.addChild(D);
+	let P = [
 		new T({
 			source: E.source,
 			frame: new i(5, 495, 640, 480)
@@ -7599,14 +7858,14 @@ var Tc = async (e, t, n) => {
 			source: E.source,
 			frame: new i(5, 985, 640, 480)
 		})
-	], P = N.map((t) => {
+	], ee = P.map((t) => {
 		let n = new Un({
 			texture: t,
 			width: e.screen.width,
 			height: e.screen.height
 		});
 		return D.addChildAt(n, 0), n;
-	}), ee = new ke({
+	}), F = new ke({
 		fontFamily: "Arial, sans-serif",
 		fontSize: 14,
 		fontWeight: "bold",
@@ -7615,16 +7874,16 @@ var Tc = async (e, t, n) => {
 			color: 0,
 			distance: 1
 		}
-	}), F = new J({
-		text: "0 mph",
-		style: ee
 	}), I = new J({
-		text: "Time: 0.0",
-		style: ee
+		text: "0 mph",
+		style: F
 	}), L = new J({
-		text: "Last: --",
-		style: ee
+		text: "Time: 0.0",
+		style: F
 	}), R = new J({
+		text: "Last: --",
+		style: F
+	}), z = new J({
 		text: "Fastest: --",
 		style: new ke({
 			fontFamily: "Arial, sans-serif",
@@ -7633,96 +7892,96 @@ var Tc = async (e, t, n) => {
 			fill: 0
 		})
 	});
-	F.visible = !1, I.visible = !1, L.visible = !1, R.visible = !1, n.root.addChild(F, I, L, R);
-	let z = null, B = async (e) => {
-		if (!z) throw Error(`signal stream not connected (${e})`);
-		await z.postCommand(e);
-	}, te = async (e) => {
-		if (!z) throw Error("signal stream not connected (/api/racer/config)");
-		await z.postCommand("/api/racer/config", JSON.stringify(e));
-	}, ne = !1, V = !1, re = !1, H = { ...u }, ie, U, ae = () => {
-		ne = !1, ie.setVisible(!1), U.title = "Configure race", U.setAttribute("aria-label", "Configure race");
+	I.visible = !1, L.visible = !1, R.visible = !1, z.visible = !1, n.root.addChild(I, L, R, z);
+	let B = null, te = async (e) => {
+		if (!B) throw Error(`signal stream not connected (${e})`);
+		await B.postCommand(e);
+	}, ne = async (e) => {
+		if (!B) throw Error("signal stream not connected (/api/racer/config)");
+		await B.postCommand("/api/racer/config", JSON.stringify(e));
+	}, V = !1, H = !1, U = !1, re = { ...u }, ie, W, ae = () => {
+		V = !1, ie.setVisible(!1), W.title = "Configure race", W.setAttribute("aria-label", "Configure race");
 	};
-	async function oe() {
-		if (!(ne || V)) {
-			V = !0, U.disabled = !0;
+	async function G() {
+		if (!(V || H)) {
+			H = !0, W.disabled = !0;
 			try {
-				await B("/api/racer/pause"), H = { ...u }, ie.update(u), ie.setVisible(!0), ne = !0, U.title = "Hide race tuning", U.setAttribute("aria-label", "Hide race tuning");
+				await te("/api/racer/pause"), re = { ...u }, ie.update(u), ie.setVisible(!0), V = !0, W.title = "Hide race tuning", W.setAttribute("aria-label", "Hide race tuning");
 			} catch (e) {
 				console.error("[pixi-debug] racer pause failed:", e);
 			} finally {
-				V = !1, U.disabled = !1;
+				H = !1, W.disabled = !1;
 			}
 		}
 	}
-	async function W(e) {
-		if (!(!ne || V)) {
-			V = !0, ie.setBusy(!0);
+	async function oe(e) {
+		if (!(!V || H)) {
+			H = !0, ie.setBusy(!0);
 			try {
-				await te(e), u = { ...e }, re && await B("/api/racer/resume"), ae();
+				await ne(e), u = { ...e }, U && await te("/api/racer/resume"), ae();
 			} catch (e) {
 				console.error("[pixi-debug] racer tuning apply failed:", e);
 			} finally {
-				V = !1, ie.setBusy(!1), U.disabled = !1;
+				H = !1, ie.setBusy(!1), W.disabled = !1;
 			}
 		}
 	}
 	async function se() {
-		if (!(!ne || V)) {
-			V = !0, ie.setBusy(!0);
+		if (!(!V || H)) {
+			H = !0, ie.setBusy(!0);
 			try {
-				re && await B("/api/racer/resume"), u = { ...H }, ie.update(u), ae();
+				U && await te("/api/racer/resume"), u = { ...re }, ie.update(u), ae();
 			} catch (e) {
 				console.error("[pixi-debug] racer tuning cancel failed:", e);
 			} finally {
-				V = !1, ie.setBusy(!1), U.disabled = !1;
+				H = !1, ie.setBusy(!1), W.disabled = !1;
 			}
 		}
 	}
-	U = document.createElement("button"), U.id = "racer-config-button", U.type = "button", U.title = "Configure race", U.setAttribute("aria-label", "Configure race"), U.innerHTML = "<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><path d=\"M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z\"/><path d=\"m19.4 15 .1.1a2 2 0 0 1-2.8 2.8l-.1-.1a2 2 0 0 0-3.4 1.4v.2a2 2 0 0 1-4 0v-.2a2 2 0 0 0-3.4-1.4l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A2 2 0 0 0 1.6 11H1.4a2 2 0 0 1 0-4h.2A2 2 0 0 0 3 3.6l-.1-.1A2 2 0 1 1 5.7.7l.1.1A2 2 0 0 0 9.2-.6v-.2a2 2 0 0 1 4 0v.2a2 2 0 0 0 3.4 1.4l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1A2 2 0 0 0 20.8 7h.2a2 2 0 0 1 0 4h-.2a2 2 0 0 0-1.4 4Z\" transform=\"translate(0 2) scale(.83)\"/></svg>", U.style.cssText = "position:fixed;top:64px;right:12px;width:36px;height:36px;display:grid;place-items:center;border:1px solid rgba(148,163,184,.45);border-radius:.45rem;background:rgba(2,6,23,.9);color:#fbbf24;cursor:pointer;z-index:7;", U.addEventListener("click", () => {
-		ne ? se() : oe();
-	}), document.body.appendChild(U);
-	let G = document.createElement("div");
-	G.id = "racer-start-overlay", G.style.cssText = "position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;background:rgba(2,6,23,.78);z-index:20;";
-	let ce = document.createElement("h2");
-	ce.textContent = "ENDLESS RACER", ce.style.cssText = "margin:0;font-family:Arial,sans-serif;font-size:2rem;color:#fbbf24;";
-	let le = document.createElement("button");
-	le.type = "button", le.textContent = "START GAME", le.style.cssText = "font-family:Arial,sans-serif;font-size:1.25rem;font-weight:bold;color:#0f172a;background:#fbbf24;border:none;border-radius:.5rem;padding:.75rem 2.5rem;cursor:pointer;";
-	let ue = document.createElement("p");
-	ue.textContent = "↑/W accelerate · ↓/S brake · ←/→ or A/D steer", ue.style.cssText = "margin:0;font-family:Arial,sans-serif;color:#94a3b8;", G.append(ce, le, ue), document.body.appendChild(G);
-	let de = document.createElement("button");
-	de.id = "racer-restart-button", de.type = "button", de.textContent = "RESTART", de.title = "Restart race", de.style.cssText = "position:fixed;top:106px;right:12px;display:none;font-family:Arial,sans-serif;font-weight:bold;color:#fbbf24;background:rgba(2,6,23,.9);border:1px solid rgba(148,163,184,.45);border-radius:.45rem;padding:.4rem .6rem;cursor:pointer;z-index:7;", document.body.appendChild(de);
+	W = document.createElement("button"), W.id = "racer-config-button", W.type = "button", W.title = "Configure race", W.setAttribute("aria-label", "Configure race"), W.innerHTML = "<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><path d=\"M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z\"/><path d=\"m19.4 15 .1.1a2 2 0 0 1-2.8 2.8l-.1-.1a2 2 0 0 0-3.4 1.4v.2a2 2 0 0 1-4 0v-.2a2 2 0 0 0-3.4-1.4l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A2 2 0 0 0 1.6 11H1.4a2 2 0 0 1 0-4h.2A2 2 0 0 0 3 3.6l-.1-.1A2 2 0 1 1 5.7.7l.1.1A2 2 0 0 0 9.2-.6v-.2a2 2 0 0 1 4 0v.2a2 2 0 0 0 3.4 1.4l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1A2 2 0 0 0 20.8 7h.2a2 2 0 0 1 0 4h-.2a2 2 0 0 0-1.4 4Z\" transform=\"translate(0 2) scale(.83)\"/></svg>", W.style.cssText = "position:fixed;top:64px;right:12px;width:36px;height:36px;display:grid;place-items:center;border:1px solid rgba(148,163,184,.45);border-radius:.45rem;background:rgba(2,6,23,.9);color:#fbbf24;cursor:pointer;z-index:7;", W.addEventListener("click", () => {
+		V ? se() : G();
+	}), document.body.appendChild(W);
+	let ce = document.createElement("div");
+	ce.id = "racer-start-overlay", ce.style.cssText = "position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;background:rgba(2,6,23,.78);z-index:20;";
+	let le = document.createElement("h2");
+	le.textContent = "ENDLESS RACER", le.style.cssText = "margin:0;font-family:Arial,sans-serif;font-size:2rem;color:#fbbf24;";
+	let ue = document.createElement("button");
+	ue.type = "button", ue.textContent = "START GAME", ue.style.cssText = "font-family:Arial,sans-serif;font-size:1.25rem;font-weight:bold;color:#0f172a;background:#fbbf24;border:none;border-radius:.5rem;padding:.75rem 2.5rem;cursor:pointer;";
+	let de = document.createElement("p");
+	de.textContent = "↑/W accelerate · ↓/S brake · ←/→ or A/D steer", de.style.cssText = "margin:0;font-family:Arial,sans-serif;color:#94a3b8;", ce.append(le, ue, de), document.body.appendChild(ce);
 	let fe = document.createElement("button");
-	fe.type = "button", fe.textContent = "🔊", fe.title = "Toggle sound", fe.style.cssText = "position:fixed;top:12px;right:12px;width:36px;height:36px;font-size:20px;border:1px solid rgba(148,163,184,.45);border-radius:.45rem;background:rgba(2,6,23,.9);color:#e2e8f0;cursor:pointer;z-index:7;display:grid;place-items:center;", fe.addEventListener("click", () => {
-		v = !v, fe.textContent = v ? "🔇" : "🔊", So.volume(pc, v ? 0 : .05);
-	}), document.body.appendChild(fe);
-	let pe = () => {
-		re || B("/api/racer/resume").then(() => {
-			re = !0, G.style.display = "none", de.style.display = "block", So.play(pc, {
+	fe.id = "racer-restart-button", fe.type = "button", fe.textContent = "RESTART", fe.title = "Restart race", fe.style.cssText = "position:fixed;top:106px;right:12px;display:none;font-family:Arial,sans-serif;font-weight:bold;color:#fbbf24;background:rgba(2,6,23,.9);border:1px solid rgba(148,163,184,.45);border-radius:.45rem;padding:.4rem .6rem;cursor:pointer;z-index:7;", document.body.appendChild(fe);
+	let pe = document.createElement("button");
+	pe.type = "button", pe.textContent = "🔊", pe.title = "Toggle sound", pe.style.cssText = "position:fixed;top:12px;right:12px;width:36px;height:36px;font-size:20px;border:1px solid rgba(148,163,184,.45);border-radius:.45rem;background:rgba(2,6,23,.9);color:#e2e8f0;cursor:pointer;z-index:7;display:grid;place-items:center;", pe.addEventListener("click", () => {
+		v = !v, pe.textContent = v ? "🔇" : "🔊", So.volume(vc, v ? 0 : .05);
+	}), document.body.appendChild(pe);
+	let me = () => {
+		U || te("/api/racer/resume").then(() => {
+			U = !0, ce.style.display = "none", fe.style.display = "block", So.play(vc, {
 				loop: !0,
 				volume: .05
 			});
 		}).catch((e) => console.error("[pixi-debug] racer start failed:", e));
 	};
-	le.addEventListener("click", pe), de.addEventListener("click", () => {
-		B("/api/racer/restart").catch((e) => console.error("[pixi-debug] racer restart failed:", e));
-	}), ie = wc(u, W, se), ie.element.id = "racer-tuning-panel";
-	let me = /* @__PURE__ */ new Map(), he = /* @__PURE__ */ new Map();
+	ue.addEventListener("click", me), fe.addEventListener("click", () => {
+		te("/api/racer/restart").catch((e) => console.error("[pixi-debug] racer restart failed:", e));
+	}), ie = kc(u, oe, se), ie.element.id = "racer-tuning-panel";
+	let he = /* @__PURE__ */ new Map(), ge = /* @__PURE__ */ new Map();
 	for (let e of s) {
-		let t = he.get(e.segmentIndex) ?? [];
-		t.push(e), he.set(e.segmentIndex, t);
+		let t = ge.get(e.segmentIndex) ?? [];
+		t.push(e), ge.set(e.segmentIndex, t);
 	}
-	let ge = (e) => {
-		let t = oc[e];
+	let _e = (e) => {
+		let t = fc[e];
 		if (!t) return null;
-		let n = me.get(e);
+		let n = he.get(e);
 		if (n) return n;
 		let r = new T({
 			source: w.source,
 			frame: new i(t.x, t.y, t.w, t.h)
 		});
-		return me.set(e, r), r;
-	}, _e = (e, t, n, r, i, a, o, s, c, l) => {
+		return he.set(e, r), r;
+	}, ve = (e, t, n, r, i, a, o, s, c, l) => {
 		let u = e - r, d = t - i, f = n - a, p = o / f;
 		return {
 			x: Math.round(s / 2 + p * u * s / 2),
@@ -7732,128 +7991,42 @@ var Tc = async (e, t, n) => {
 			cameraZ: f,
 			cameraY: d
 		};
-	}, ve = (e, t, n) => {
-		let r = e.get(t);
-		r ? r.push(n) : e.set(t, [n]);
-	}, ye = (e) => {
-		for (let [t, n] of e) {
-			for (let e of n) {
-				O.moveTo(e[0], e[1]);
-				for (let t = 2; t + 1 < e.length; t += 2) O.lineTo(e[t], e[t + 1]);
-				O.closePath();
-			}
-			O.fill(t);
-		}
-	}, be = (e, t) => {
-		let n = /* @__PURE__ */ new Map(), r = /* @__PURE__ */ new Map(), i = /* @__PURE__ */ new Map(), a = /* @__PURE__ */ new Map();
-		for (let o of e) {
-			let { p1: e, p2: s, segment: c } = o, l = cc[c.color] ?? cc[nc], d = e.w / Math.max(6, 2 * u.lanes), f = s.w / Math.max(6, 2 * u.lanes), p = e.w / Math.max(32, 8 * u.lanes), m = s.w / Math.max(32, 8 * u.lanes);
-			if (Math.max(0, e.y - s.y) > 0 && ve(n, l.grass, [
-				0,
-				s.y,
-				t,
-				s.y,
-				t,
-				e.y,
-				0,
-				e.y
-			]), ve(r, l.rumble, [
-				e.x - e.w - d,
-				e.y,
-				e.x - e.w,
-				e.y,
-				s.x - s.w,
-				s.y,
-				s.x - s.w - f,
-				s.y
-			]), ve(r, l.rumble, [
-				e.x + e.w + d,
-				e.y,
-				e.x + e.w,
-				e.y,
-				s.x + s.w,
-				s.y,
-				s.x + s.w + f,
-				s.y
-			]), ve(i, l.road, [
-				e.x - e.w,
-				e.y,
-				e.x + e.w,
-				e.y,
-				s.x + s.w,
-				s.y,
-				s.x - s.w,
-				s.y
-			]), l.lane !== null) {
-				let t = e.w * 2 / u.lanes, n = s.w * 2 / u.lanes, r = e.x - e.w + t, i = s.x - s.w + n;
-				for (let o = 1; o < u.lanes; o++) ve(a, l.lane, [
-					r - p / 2,
-					e.y,
-					r + p / 2,
-					e.y,
-					i + m / 2,
-					s.y,
-					i - m / 2,
-					s.y
-				]), r += t, i += n;
-			}
-		}
-		ye(n), ye(r), ye(i), ye(a);
-		let o = /* @__PURE__ */ new Map();
-		for (let n of e) {
-			let { p1: e, p2: r, fog: i } = n;
-			if (i >= 1) continue;
-			let a = Math.round((1 - i) * 24);
-			a <= 0 || Math.max(0, e.y - r.y) <= 0 || ve(o, a, [
-				0,
-				r.y,
-				t,
-				r.y,
-				t,
-				e.y,
-				0,
-				e.y
-			]);
-		}
-		for (let [e, t] of o) {
-			for (let e of t) O.poly(e);
-			O.fill({
-				color: 20744,
-				alpha: e / 24
-			});
-		}
-	}, xe = (e, t, n, r, i, a, o, s) => {
-		let c = oc[t], l = ge(t);
+	}, ye = /* @__PURE__ */ new Map(), be = [], xe = /* @__PURE__ */ new Map(), Se = () => {
+		ye.clear(), be.length = 0, xe.clear();
+	}, Ce = (e, t, n, r, i, a, o, s) => {
+		let c = fc[t], l = _e(t);
 		if (!c || !l) return;
-		let d = c.w * n * s / 2 * (fc * u.roadWidth), f = c.h * n * s / 2 * (fc * u.roadWidth), p = r + d * a, m = i - f;
+		let d = c.w * n * s / 2 * (_c * u.roadWidth), f = c.h * n * s / 2 * (_c * u.roadWidth), p = r + d * a, m = i - f;
 		if (p + d < 0 || p > s) return;
 		let h = Math.min(f, Math.max(0, o - m));
-		h <= 0 || d <= 0 || e.acquire(l, p, m, d, h);
-	}, Se = new Cc(A, w, 128), Ce = new Cc(j, w, 32), we = new Cc(M, w, 1), Te = Math.round(e.screen.width / u.resolutionScale), Ee = Math.round(e.screen.height / u.resolutionScale), De = () => {
-		Te = Math.round(e.screen.width / u.resolutionScale), Ee = Math.round(e.screen.height / u.resolutionScale), D.scale.set(u.resolutionScale);
-		for (let e of P) e.width = Te, e.height = Ee, e.tileScale.set(1, Ee / 480);
-	}, Oe = new ResizeObserver(() => De());
-	Oe.observe(e.canvas);
-	let Ae = !1, je = !1, Me = !1, Ne = !1, Pe = /* @__PURE__ */ new Map(), Fe = (t) => {
+		if (h <= 0 || d <= 0) return;
+		let g = l.orig.width, _ = l.orig.height, v = d / g, y = h / _;
+		e.acquire(l, p, m, v, y);
+	}, we = new Oc(A, w, 128), Te = new Oc(j, w, 32), K = new Oc(M, w, 1), Ee = Math.round(e.screen.width / u.resolutionScale), De = Math.round(e.screen.height / u.resolutionScale), Oe = () => {
+		Ee = Math.round(e.screen.width / u.resolutionScale), De = Math.round(e.screen.height / u.resolutionScale), D.scale.set(u.resolutionScale);
+		for (let e of ee) e.width = Ee, e.height = De, e.tileScale.set(1, De / 480);
+	}, Ae = new ResizeObserver(() => Oe());
+	Ae.observe(e.canvas);
+	let je = !1, Me = !1, Ne = !1, Pe = !1, Fe = /* @__PURE__ */ new Map(), Ie = (t) => {
 		let n = e.canvas.getBoundingClientRect(), r = (t.clientX - n.left) / n.width, i = (t.clientY - n.top) / n.height;
 		return r < .5 ? i < .5 ? "left" : "right" : i < .5 ? "faster" : "slower";
-	}, Ie = () => {
-		Ae = je = Me = Ne = !1;
-		for (let { action: e } of Pe.values()) e === "left" ? Ae = !0 : e === "right" ? je = !0 : e === "faster" ? Me = !0 : Ne = !0;
-	}, Le = (e) => {
+	}, Le = () => {
+		je = Me = Ne = Pe = !1;
+		for (let { action: e } of Fe.values()) e === "left" ? je = !0 : e === "right" ? Me = !0 : e === "faster" ? Ne = !0 : Pe = !0;
+	}, Re = (e) => {
 		e.preventDefault();
 		for (let t = 0; t < e.changedTouches.length; t++) {
 			let n = e.changedTouches[t];
-			Pe.set(n.identifier, { action: Fe(n) });
+			Fe.set(n.identifier, { action: Ie(n) });
 		}
-		Ie(), Ue();
-	}, Re = (e) => {
+		Le(), We();
+	}, ze = (e) => {
 		e.preventDefault();
-		for (let t = 0; t < e.changedTouches.length; t++) Pe.delete(e.changedTouches[t].identifier);
-		Ie(), Ue();
-	}, ze = Re, Be = e.canvas;
-	Be.addEventListener("touchstart", Le, { passive: !1 }), Be.addEventListener("touchend", Re, { passive: !1 }), Be.addEventListener("touchcancel", ze, { passive: !1 });
-	let Ve = () => {
+		for (let t = 0; t < e.changedTouches.length; t++) Fe.delete(e.changedTouches[t].identifier);
+		Le(), We();
+	}, Be = ze, Ve = e.canvas;
+	Ve.addEventListener("touchstart", Re, { passive: !1 }), Ve.addEventListener("touchend", ze, { passive: !1 }), Ve.addEventListener("touchcancel", Be, { passive: !1 });
+	let He = () => {
 		if (o.length === 0) return;
 		let t = y.advance(_);
 		if (t === null) return;
@@ -7866,112 +8039,130 @@ var Tc = async (e, t, n) => {
 			return {
 				...e.current,
 				z: t,
-				percent: bc(t, c)
+				percent: Tc(t, c)
 			};
-		}), s = xc(r.z - g, 0, l), f = Math.floor(r.z / c) % o.length, v = o[f < 0 ? f + o.length : f]?.curve ?? 0;
-		p = xc(p, lc * v * s / c, 1), m = xc(m, uc * v * s / c, 1), h = xc(h, dc * v * s / c, 1), g = r.z;
-		let x = Math.max(.1, u.resolutionScale), S = Math.max(1, e.screen.width / x), C = Math.max(1, e.screen.height / x), w = 1 / Math.tan(u.fieldOfView / 2 * Math.PI / 180), T = u.cameraHeight * w, E = Math.floor(r.z / c) % o.length, D = E < 0 ? E + o.length : E, k = bc(r.z, c), A = xc(r.z + T, 0, l), j = Math.floor(A / c) % o.length, M = o[j] ?? o[0], N = bc(A, c), ee = yc(M?.p1WorldY ?? 0, M?.p2WorldY ?? 0, N), z = ee + u.cameraHeight, B = C, te = 0, ne = -(o[D]?.curve ?? 0) * k, V = /* @__PURE__ */ new Map();
-		O.clear(), Se.finish(), Ce.finish(), we.finish(), P[0].tilePosition.set(-p * 1280, C * .001 * ee), P[1].tilePosition.set(-m * 1280, C * .002 * ee), P[2].tilePosition.set(-h * 1280, C * .003 * ee);
-		let re = [];
+		}), s = Ec(r.z - g, 0, l), f = Math.floor(r.z / c) % o.length, v = o[f < 0 ? f + o.length : f]?.curve ?? 0;
+		p = Ec(p, mc * v * s / c, 1), m = Ec(m, hc * v * s / c, 1), h = Ec(h, gc * v * s / c, 1), g = r.z;
+		let x = Math.max(.1, u.resolutionScale), S = Math.max(1, e.screen.width / x), C = Math.max(1, e.screen.height / x), w = 1 / Math.tan(u.fieldOfView / 2 * Math.PI / 180), T = u.cameraHeight * w, E = Math.floor(r.z / c) % o.length, D = E < 0 ? E + o.length : E, k = Tc(r.z, c), A = Ec(r.z + T, 0, l), j = Math.floor(A / c) % o.length, M = o[j] ?? o[0], P = Tc(A, c), F = wc(M?.p1WorldY ?? 0, M?.p2WorldY ?? 0, P), B = F + u.cameraHeight, te = C, ne = 0, V = -(o[D]?.curve ?? 0) * k;
+		Se(), we.finish(), Te.finish(), K.finish(), ee[0].tilePosition.set(-p * 1280, C * .001 * F), ee[1].tilePosition.set(-m * 1280, C * .002 * F), ee[2].tilePosition.set(-h * 1280, C * .003 * F), O.update({
+			playerX: r.x * u.roadWidth,
+			playerZ: r.z,
+			cameraY: B,
+			cameraDepth: w,
+			width: S,
+			height: C,
+			roadWidth: u.roadWidth,
+			drawDistance: u.drawDistance,
+			fogDensity: u.fogDensity,
+			segments: o,
+			normalizedBaseIndex: D,
+			x: ne,
+			dx: V
+		}), N.update({
+			fogDensity: u.fogDensity,
+			drawDistance: u.drawDistance,
+			cameraDepth: w,
+			cameraY: B,
+			playerZ: r.z,
+			segmentLength: c
+		});
 		for (let e = 0; e < u.drawDistance; e++) {
 			let t = o[(D + e) % o.length];
 			if (!t) continue;
-			let n = t.index < D, i = 1 / Math.E ** ((e / u.drawDistance) ** 2 * u.fogDensity), a = _e(0, t.p1WorldY, t.index * c, r.x * u.roadWidth - te, z, r.z - (n ? l : 0), w, S, C, u.roadWidth), s = _e(0, t.p2WorldY, (t.index + 1) * c, r.x * u.roadWidth - te - ne, z, r.z - (n ? l : 0), w, S, C, u.roadWidth);
-			te += ne, ne += t.curve;
+			let n = t.index < D, i = 1 / Math.E ** ((e / u.drawDistance) ** 2 * u.fogDensity), a = ve(0, t.p1WorldY, t.index * c, r.x * u.roadWidth - ne, B, r.z - (n ? l : 0), w, S, C, u.roadWidth), s = ve(0, t.p2WorldY, (t.index + 1) * c, r.x * u.roadWidth - ne - V, B, r.z - (n ? l : 0), w, S, C, u.roadWidth);
+			ne += V, V += t.curve;
 			let d = {
 				segment: t,
 				p1: a,
 				p2: s,
 				fog: i,
-				clip: B
+				clip: te
 			};
-			a.cameraZ <= w || s.y >= a.y || s.y >= B || (B = a.y, d.clip = B, V.set(t.index, d), re.push(d));
+			a.cameraZ <= w || s.y >= a.y || s.y >= te || (te = a.y, d.clip = te, ye.set(t.index, d), be.push(d));
 		}
-		be(re, S);
-		let H = /* @__PURE__ */ new Map();
 		for (let e of a) {
-			let t = Math.floor(e.z / c) % o.length, n = t < 0 ? t + o.length : t, r = H.get(n) ?? [];
-			r.push(e), H.set(n, r);
+			let t = Math.floor(e.z / c) % o.length, n = t < 0 ? t + o.length : t, r = xe.get(n);
+			r ? r.push(e) : xe.set(n, [e]);
 		}
 		for (let e = u.drawDistance - 1; e > 0; e--) {
 			let t = o[(D + e) % o.length];
 			if (!t) continue;
-			let n = V.get(t.index);
+			let n = ye.get(t.index);
 			if (!n) continue;
-			let i = H.get(t.index) ?? [];
+			let i = xe.get(t.index) ?? [];
 			for (let e of i) {
-				let t = yc(n.p1.scale, n.p2.scale, e.percent), r = yc(n.p1.x, n.p2.x, e.percent) + t * e.offset * u.roadWidth * S / 2, i = yc(n.p1.y, n.p2.y, e.percent);
-				xe(Ce, e.spriteKind, t, r, i, -.5, n.clip, S);
+				let t = wc(n.p1.scale, n.p2.scale, e.percent), r = wc(n.p1.x, n.p2.x, e.percent) + t * e.offset * u.roadWidth * S / 2, i = wc(n.p1.y, n.p2.y, e.percent);
+				Ce(Te, e.spriteKind, t, r, i, -.5, n.clip, S);
 			}
-			for (let e of he.get(t.index) ?? []) xe(Se, e.spriteKind, n.p1.scale, n.p1.x + n.p1.scale * e.offset * u.roadWidth * S / 2, n.p1.y, e.offset < 0 ? -1 : 0, n.clip, S);
+			for (let e of ge.get(t.index) ?? []) Ce(we, e.spriteKind, n.p1.scale, n.p1.x + n.p1.scale * e.offset * u.roadWidth * S / 2, n.p1.y, e.offset < 0 ? -1 : 0, n.clip, S);
 			if (t.index === j) {
-				let e = yc(t.p1WorldY - z, t.p2WorldY - z, N), n = w / T, i = C / 2 - n * e * C / 2, a = r.uphill ? r.steer < 0 ? $.PLAYER_UPHILL_LEFT : r.steer > 0 ? $.PLAYER_UPHILL_RIGHT : $.PLAYER_UPHILL_STRAIGHT : r.steer < 0 ? $.PLAYER_LEFT : r.steer > 0 ? $.PLAYER_RIGHT : $.PLAYER_STRAIGHT, o = 1.5 * Math.random() * (r.speed / 6e4) * u.resolutionScale;
-				xe(we, a, n, S / 2, i + o, -.5, C, S);
+				let e = wc(t.p1WorldY - B, t.p2WorldY - B, P), n = w / T, i = C / 2 - n * e * C / 2, a = r.uphill ? r.steer < 0 ? $.PLAYER_UPHILL_LEFT : r.steer > 0 ? $.PLAYER_UPHILL_RIGHT : $.PLAYER_UPHILL_STRAIGHT : r.steer < 0 ? $.PLAYER_LEFT : r.steer > 0 ? $.PLAYER_RIGHT : $.PLAYER_STRAIGHT, o = 1.5 * Math.random() * (r.speed / 6e4) * u.resolutionScale;
+				Ce(K, a, n, S / 2, i + o, -.5, C, S);
 			}
 		}
-		let ie = `${Math.round(5 * Math.round(r.speed / 500))} mph`;
-		F.text !== ie && (F.text = ie);
-		let U = `Time: ${Sc(r.currentLapTime)}`;
-		I.text !== U && (I.text = U);
-		let ae = r.lastLapTime > 0 ? `Last: ${Sc(r.lastLapTime)}` : "";
-		L.text !== ae && (L.text = ae);
-		let oe = `Fastest: ${Sc(r.fastLapTime)}`;
-		R.text !== oe && (R.text = oe);
-		let W = Ee * u.resolutionScale - 32;
-		F.position.set(Te * u.resolutionScale - 100, W), I.position.set(16, W), L.position.set(180, W), R.position.set(Te * u.resolutionScale / 2 - 60, W), F.visible = !0, I.visible = !0, L.visible = r.lastLapTime > 0, R.visible = !0;
-		let se = r.lastLapTime > 0 && r.lastLapTime <= r.fastLapTime ? 16766720 : 0;
-		R.style.fill !== se && (R.style.fill = se), document.getElementById("pixi-viewport")?.setAttribute("data-racer-bounds", `${Math.round(S)}x${Math.round(C)}`);
-	}, He = (e) => {
-		e.epoch !== void 0 && e.epoch !== x && (x !== null && (p = 0, m = 0, h = 0, g = e.player.z), x = e.epoch), _ = Math.max(1, e.stepMs ?? 1e3 / 60), d = e.player, f = e.cars, u = e.settings, d.fastLapTime > 0 && d.fastLapTime !== S && (_c(d.fastLapTime), S = d.fastLapTime), y.ingest([{
+		let H = `${Math.round(5 * Math.round(r.speed / 500))} mph`;
+		I.text !== H && (I.text = H);
+		let U = `Time: ${Dc(r.currentLapTime)}`;
+		L.text !== U && (L.text = U);
+		let re = r.lastLapTime > 0 ? `Last: ${Dc(r.lastLapTime)}` : "";
+		R.text !== re && (R.text = re);
+		let ie = `Fastest: ${Dc(r.fastLapTime)}`;
+		z.text !== ie && (z.text = ie);
+		let W = De * u.resolutionScale - 32;
+		I.position.set(Ee * u.resolutionScale - 100, W), L.position.set(16, W), R.position.set(180, W), z.position.set(Ee * u.resolutionScale / 2 - 60, W), I.visible = !0, L.visible = !0, R.visible = r.lastLapTime > 0, z.visible = !0;
+		let ae = r.lastLapTime > 0 && r.lastLapTime <= r.fastLapTime ? 16766720 : 0;
+		z.style.fill !== ae && (z.style.fill = ae), document.getElementById("pixi-viewport")?.setAttribute("data-racer-bounds", `${Math.round(S)}x${Math.round(C)}`);
+	}, Ue = (e) => {
+		e.epoch !== void 0 && e.epoch !== x && (x !== null && (p = 0, m = 0, h = 0, g = e.player.z), x = e.epoch), _ = Math.max(1, e.stepMs ?? 1e3 / 60), d = e.player, f = e.cars, u = e.settings, d.fastLapTime > 0 && d.fastLapTime !== S && (Sc(d.fastLapTime), S = d.fastLapTime), y.ingest([{
 			id: 0,
 			...e.player
-		}], e.seq, e.epoch), b.ingest(e.cars, e.seq, e.epoch), ne || ie.update(u), li({
+		}], e.seq, e.epoch), b.ingest(e.cars, e.seq, e.epoch), V || ie.update(u), li({
 			seq: e.seq,
 			entityCount: e.entityCount,
 			tickMs: e.tickMs
-		}), e.lapCompleted && hc("lap completed:", d.lap, Sc(d.lastLapTime)), e.collided && hc("collision resolved by ECS");
-	}, Ue = () => {
-		z?.postCommand("/api/racer/input", JSON.stringify({
-			left: Ae,
-			right: je,
-			faster: Me,
-			slower: Ne
+		}), e.lapCompleted && bc("lap completed:", d.lap, Dc(d.lastLapTime)), e.collided && bc("collision resolved by ECS");
+	}, We = () => {
+		B?.postCommand("/api/racer/input", JSON.stringify({
+			left: je,
+			right: Me,
+			faster: Ne,
+			slower: Pe
 		})).catch((e) => console.error("[pixi-debug] racer input failed:", e));
-	}, We = (e, t) => {
+	}, Ge = (e, t) => {
 		switch (e.key) {
 			case "ArrowLeft":
 			case "a":
-			case "A": return Ae = t, !0;
+			case "A": return je = t, !0;
 			case "ArrowRight":
 			case "d":
-			case "D": return je = t, !0;
+			case "D": return Me = t, !0;
 			case "ArrowUp":
 			case "w":
-			case "W": return Me = t, !0;
+			case "W": return Ne = t, !0;
 			case "ArrowDown":
 			case "s":
-			case "S": return Ne = t, !0;
+			case "S": return Pe = t, !0;
 			default: return !1;
 		}
-	}, Ge = (e) => {
+	}, Ke = (e) => {
 		if (e.key === " " || e.key === "Enter") {
-			e.preventDefault(), pe();
+			e.preventDefault(), me();
 			return;
 		}
-		We(e, !0) && (e.preventDefault(), Ue());
-	}, Ke = (e) => {
-		We(e, !1) && (e.preventDefault(), Ue());
+		Ge(e, !0) && (e.preventDefault(), We());
+	}, qe = (e) => {
+		Ge(e, !1) && (e.preventDefault(), We());
 	};
-	window.addEventListener("keydown", Ge), window.addEventListener("keyup", Ke), z = Yr(r.streamUrl), z?.addSignalListener("racer-move", (e) => {
+	window.addEventListener("keydown", Ke), window.addEventListener("keyup", qe), B = Yr(r.streamUrl), B?.addSignalListener("racer-move", (e) => {
 		try {
 			let t = JSON.parse(e);
-			if (!vc(t)) return;
-			He(t);
+			if (!Cc(t)) return;
+			Ue(t);
 		} catch (e) {
 			console.error("[pixi-debug] racer-move parse failed:", e);
 		}
 	});
-	let qe = (e, t) => ({
+	let Je = (e, t) => ({
 		id: e[t],
 		z: e[t + 1],
 		offset: e[t + 2],
@@ -7979,13 +8170,13 @@ var Tc = async (e, t, n) => {
 		percent: e[t + 4],
 		spriteKind: e[t + 5]
 	});
-	return z?.addBufferListener("racer-move", (e) => {
+	return B?.addBufferListener("racer-move", (e) => {
 		try {
 			let t = wo(e);
-			hc("racer-move buffer:", e.length, "header:", t.entityCount, "stride:", t.stride);
+			bc("racer-move buffer:", e.length, "header:", t.entityCount, "stride:", t.stride);
 			let n = [];
-			for (let r = 0; r < t.entityCount; r++) n.push(qe(e, 24 + r * t.stride));
-			He({
+			for (let r = 0; r < t.entityCount; r++) n.push(Je(e, 24 + r * t.stride));
+			Ue({
 				seq: t.seq,
 				entityCount: t.entityCount,
 				tickMs: t.tickMs,
@@ -8018,15 +8209,15 @@ var Tc = async (e, t, n) => {
 		} catch (e) {
 			console.error("[pixi-debug] racer-move buffer decode failed:", e);
 		}
-	}), z?.onInterrupted(() => hc("SSE connection error")), y.ingest([{
+	}), B?.onInterrupted(() => bc("SSE connection error")), y.ingest([{
 		id: 0,
 		...d
-	}]), b.ingest(f), So.add(pc, mc), B("/api/racer/pause").catch((e) => console.error("[pixi-debug] racer pause failed:", e)), e.ticker.add(Ve), Ve(), hc("scene boot:", o.length, "segments,", f.length, "cars"), () => {
-		z?.close(), window.removeEventListener("keydown", Ge), window.removeEventListener("keyup", Ke), Be.removeEventListener("touchstart", Le), Be.removeEventListener("touchend", Re), Be.removeEventListener("touchcancel", ze), Oe.disconnect(), e.ticker.remove(Ve), So.stop(pc), ie.element.remove(), U.remove(), G.remove(), de.remove(), fe.remove(), Se.destroy(), Ce.destroy(), we.destroy(), F.destroy(), I.destroy(), L.destroy(), R.destroy();
-		for (let e of me.values()) e.destroy();
-		for (let e of N) e.destroy();
+	}]), b.ingest(f), So.add(vc, yc), te("/api/racer/pause").catch((e) => console.error("[pixi-debug] racer pause failed:", e)), e.ticker.add(He), He(), bc("scene boot:", o.length, "segments,", f.length, "cars"), () => {
+		B?.close(), window.removeEventListener("keydown", Ke), window.removeEventListener("keyup", qe), Ve.removeEventListener("touchstart", Re), Ve.removeEventListener("touchend", ze), Ve.removeEventListener("touchcancel", Be), Ae.disconnect(), e.ticker.remove(He), So.stop(vc), ie.element.remove(), W.remove(), ce.remove(), fe.remove(), pe.remove(), we.destroy(), Te.destroy(), K.destroy(), I.destroy(), L.destroy(), R.destroy(), z.destroy(), O.destroy(), N.destroy();
+		for (let e of he.values()) e.destroy();
+		for (let e of P) e.destroy();
 	};
-}, Ec = (e, t, n) => {
+}, jc = (e, t, n) => {
 	e.renderer.background.color = "#1099bb";
 	let r = new K();
 	r.rect(50, 50, 100, 100).fill(14561865), r.rect(200, 50, 100, 100).fill(6621786).stroke({
@@ -8079,7 +8270,7 @@ var Tc = async (e, t, n) => {
 	]).fill(3473658), r.eventMode = "static", r.cursor = "pointer", r.on("pointertap", () => {
 		console.log("Graphics clicked!"), r.tint = 65280;
 	}), n.root.addChild(r);
-}, Dc = 12, Oc = (e, t) => ({
+}, Mc = 12, Nc = (e, t) => ({
 	id: e[t],
 	x: e[t + 1],
 	y: e[t + 2],
@@ -8091,7 +8282,7 @@ var Tc = async (e, t, n) => {
 	r: e[t + 8],
 	g: e[t + 9],
 	b: e[t + 10]
-}), kc = 2, Ac = 3, jc = 125, Mc = {
+}), Pc = 2, Fc = 3, Ic = 125, Lc = {
 	ArrowUp: "up",
 	w: "up",
 	W: "up",
@@ -8112,24 +8303,24 @@ var Tc = async (e, t, n) => {
 	D: "right",
 	l: "right",
 	L: "right"
-}, Nc = "snake-eat", Pc = "snake-spawn", Fc = "snake-endgame", Ic = "./audio/snake-eat.mp3", Lc = "./audio/snake-spawn.mp3", Rc = "./audio/snake-endgame.mp3", zc = /* @__PURE__ */ new Set();
-function Bc(e, t) {
-	zc.has(e) || (So.add(e, t), zc.add(e));
+}, Rc = "snake-eat", zc = "snake-spawn", Bc = "snake-endgame", Vc = "./audio/snake-eat.mp3", Hc = "./audio/snake-spawn.mp3", Uc = "./audio/snake-endgame.mp3", Wc = /* @__PURE__ */ new Set();
+function Gc(e, t) {
+	Wc.has(e) || (So.add(e, t), Wc.add(e));
 }
-function Vc(e, t) {
-	Bc(e, t), So.play(e);
+function Kc(e, t) {
+	Gc(e, t), So.play(e);
 }
-function Hc(e) {
+function qc(e) {
 	if (!e || typeof e != "object") return !1;
 	let t = e;
 	return typeof t.id == "number" && typeof t.x == "number" && typeof t.y == "number" && typeof t.previousX == "number" && typeof t.previousY == "number" && typeof t.velocityX == "number" && typeof t.velocityY == "number" && typeof t.kind == "number" && typeof t.r == "number" && typeof t.g == "number" && typeof t.b == "number";
 }
-function Uc(e) {
+function Jc(e) {
 	if (!e || typeof e != "object") return !1;
 	let t = e;
-	return typeof t.seq == "number" && typeof t.entityCount == "number" && typeof t.tickMs == "number" && typeof t.stepMs == "number" && Array.isArray(t.sprites) && t.sprites.every(Hc) && typeof t.score == "number" && typeof t.gameOver == "boolean" && typeof t.started == "boolean" && typeof t.ate == "boolean" && typeof t.foodSpawned == "boolean" && typeof t.foodFalling == "boolean";
+	return typeof t.seq == "number" && typeof t.entityCount == "number" && typeof t.tickMs == "number" && typeof t.stepMs == "number" && Array.isArray(t.sprites) && t.sprites.every(qc) && typeof t.score == "number" && typeof t.gameOver == "boolean" && typeof t.started == "boolean" && typeof t.ate == "boolean" && typeof t.foodSpawned == "boolean" && typeof t.foodFalling == "boolean";
 }
-var Wc = (e, t, n) => {
+var Yc = (e, t, n) => {
 	let r = (t ?? {}).snake ?? {};
 	e.renderer.background.color = "#020617";
 	let i = r.gridWidth ?? 40, a = r.gridHeight ?? 30, o = r.cellSize ?? 20, s = i * o, c = a * o, l = new K(), u = new K(), d = Math.min(e.screen.width / s, e.screen.height / c);
@@ -8157,8 +8348,8 @@ var Wc = (e, t, n) => {
 	g.type = "button", g.textContent = "START GAME", g.style.cssText = "background-color:#34d399;color:#020617;border:none;border-radius:0.5rem;padding:0.75rem 2rem;font-size:1.1rem;font-weight:bold;cursor:pointer;";
 	let _ = document.createElement("div");
 	_.style.cssText = "color:#94a3b8;font:0.85rem sans-serif;", _.textContent = "or press SPACE", m.append(h, g, _), document.body.appendChild(m);
-	let v = r.started ?? !1, y = r.gameOver ?? !1, b = r.score ?? 0, x = v, S = y, C = jc, w = new Do(), T = null, E = () => {
-		v && !x && console.debug("[pixi-debug] snake started (ECS signal)"), y && !S && (console.debug("[pixi-debug] snake ended (ECS signal) - score", b), Vc(Fc, Rc)), x = v, S = y;
+	let v = r.started ?? !1, y = r.gameOver ?? !1, b = r.score ?? 0, x = v, S = y, C = Ic, w = new Do(), T = null, E = () => {
+		v && !x && console.debug("[pixi-debug] snake started (ECS signal)"), y && !S && (console.debug("[pixi-debug] snake ended (ECS signal) - score", b), Kc(Bc, Uc)), x = v, S = y;
 	}, D = () => {
 		if (v && !y) {
 			m.style.display = "none";
@@ -8175,12 +8366,12 @@ var Wc = (e, t, n) => {
 		l.clear(), u.clear();
 		for (let { previous: t, current: n } of w.values()) {
 			let r = t.x + (n.x - t.x) * e, i = t.y + (n.y - t.y) * e, a = n.r << 16 | n.g << 8 | n.b;
-			(n.kind === kc || n.kind === Ac ? u : l).rect(r - o / 2, i - o / 2, o, o).fill(a);
+			(n.kind === Pc || n.kind === Fc ? u : l).rect(r - o / 2, i - o / 2, o, o).fill(a);
 		}
 	}, A = (e, t, n) => {
 		p.text = `Score: ${e}`, y = t, v = n, b = e, E(), D();
 	};
-	w.ingest((r.sprites ?? []).filter(Hc)), A(r.score ?? 0, r.gameOver ?? !1, v);
+	w.ingest((r.sprites ?? []).filter(qc)), A(r.score ?? 0, r.gameOver ?? !1, v);
 	let j = (e) => {
 		let t = w.advance(C);
 		t !== null && k(t);
@@ -8191,37 +8382,37 @@ var Wc = (e, t, n) => {
 			e.preventDefault(), O();
 			return;
 		}
-		let t = Mc[e.key];
+		let t = Lc[e.key];
 		t && (e.preventDefault(), T?.postCommand("/api/snake/input", JSON.stringify({ direction: t })).catch((e) => console.error("[pixi-debug] snake input failed:", e)));
 	};
 	return window.addEventListener("keydown", M), T = Yr(r.streamUrl), T ? (T.addSignalListener("snake-move", (e) => {
 		try {
 			let t = JSON.parse(e);
-			if (!Uc(t)) throw Error("invalid snake render signal");
+			if (!Jc(t)) throw Error("invalid snake render signal");
 			li({
 				seq: t.seq,
 				entityCount: t.entityCount,
 				tickMs: t.tickMs
-			}), C = Math.max(1, t.stepMs), w.ingest(t.sprites, t.seq, t.epoch), A(t.score, t.gameOver, t.started), t.ate && Vc(Nc, Ic), t.foodSpawned && Vc(Pc, Lc), t.foodFalling && console.debug("[pixi-debug] snake bad food started falling");
+			}), C = Math.max(1, t.stepMs), w.ingest(t.sprites, t.seq, t.epoch), A(t.score, t.gameOver, t.started), t.ate && Kc(Rc, Vc), t.foodSpawned && Kc(zc, Hc), t.foodFalling && console.debug("[pixi-debug] snake bad food started falling");
 		} catch (e) {
 			console.error("[pixi-debug] snake-move parse failed:", e);
 		}
 	}), T.addBufferListener("snake-move", (e) => {
 		try {
-			let t = w.ingestFromBuffer(e, Oc, Dc);
+			let t = w.ingestFromBuffer(e, Nc, Mc);
 			if (!t) return;
 			li({
 				seq: t.seq,
 				entityCount: t.entityCount,
 				tickMs: t.tickMs
-			}), C = Math.max(1, t.stepMs), A(e[6], Q(e[7]), Q(e[8])), Q(e[9]) && Vc(Nc, Ic), Q(e[10]) && Vc(Pc, Lc), Q(e[11]) && console.debug("[pixi-debug] snake bad food started falling");
+			}), C = Math.max(1, t.stepMs), A(e[6], Q(e[7]), Q(e[8])), Q(e[9]) && Kc(Rc, Vc), Q(e[10]) && Kc(zc, Hc), Q(e[11]) && console.debug("[pixi-debug] snake bad food started falling");
 		} catch (e) {
 			console.error("[pixi-debug] snake-move buffer decode failed:", e);
 		}
 	}), T.onInterrupted(() => console.warn("[pixi-debug] snake SSE interrupted; browser will retry")), () => {
 		T?.close(), window.removeEventListener("keydown", M), e.ticker.remove(j), m.remove();
 	}) : void 0;
-}, Gc = async (e, t, n) => {
+}, Xc = async (e, t, n) => {
 	e.renderer.background.color = "#000000";
 	let r = await q.load("https://pixijs.com/assets/star.png"), i = 0, a = 0, o = [];
 	for (let e = 0; e < 500; e++) {
@@ -8251,7 +8442,7 @@ var Wc = (e, t, n) => {
 	return e.ticker.add(c), () => {
 		e.ticker.remove(c), clearInterval(s);
 	};
-}, Kc = {
+}, Zc = {
 	ArrowLeft: "left",
 	a: "left",
 	A: "left",
@@ -8264,14 +8455,14 @@ var Wc = (e, t, n) => {
 	ArrowDown: "down",
 	s: "down",
 	S: "down"
-}, qc = (...e) => console.log("[pixi-debug] tetris:", ...e), Jc = 14, Yc = (e, t) => ({
+}, Qc = (...e) => console.log("[pixi-debug] tetris:", ...e), $c = 14, el = (e, t) => ({
 	id: e[t],
 	x: e[t + 1],
 	y: e[t + 2],
 	r: e[t + 3],
 	g: e[t + 4],
 	b: e[t + 5]
-}), Xc = {
+}), tl = {
 	"basic/container": vs,
 	"basic/container-pivot": _s,
 	"basic/blend-modes": is,
@@ -8296,16 +8487,16 @@ var Wc = (e, t, n) => {
 			e.ticker.remove(a);
 		};
 	},
-	"graphics/simple-graphics": Ec,
+	"graphics/simple-graphics": jc,
 	"filters/blur-filter": as,
 	"masks/graphics-mask": Ss,
 	"meshes/mesh-rope": Cs,
 	"events/dragging": ys,
 	"textures/render-texture": $s,
 	"assets/asset-bundle": es,
-	"advanced/star-warp": Gc,
+	"advanced/star-warp": Xc,
 	"ecs/sprites": bs,
-	"games/snake": Wc,
+	"games/snake": Yc,
 	"games/tetris": (e, t, n) => {
 		let r = (t ?? {}).tetris ?? {};
 		e.renderer.background.color = "#020617";
@@ -8335,7 +8526,7 @@ var Wc = (e, t, n) => {
 		let g = document.createElement("div");
 		g.style.cssText = "color:#94a3b8;font:0.85rem sans-serif;", g.textContent = "or press SPACE", p.append(m, h, g), document.body.appendChild(p);
 		let _ = r.started ?? !1, v = r.gameOver ?? !1, y = r.score ?? 0, b = r.rows ?? 0, x = r.level ?? 1, S = v, C = 1e3 / 60, w = new Do(), T = null, E = () => {
-			v && !S && qc("game ended (ECS signal) - score", y), S = v;
+			v && !S && Qc("game ended (ECS signal) - score", y), S = v;
 		}, D = () => {
 			if (_ && !v) {
 				p.style.display = "none";
@@ -8343,7 +8534,7 @@ var Wc = (e, t, n) => {
 			}
 			p.style.display = "flex", m.textContent = v ? `GAME OVER - SCORE: ${y}` : "TETRIS", h.textContent = v ? "PLAY AGAIN" : "START GAME";
 		}, O = () => {
-			_ && !v || (qc("starting game (button or space)"), T?.postCommand("/api/tetris/start").catch((e) => console.error("[pixi-debug] tetris start failed:", e)), _ = !0, v = !1, D());
+			_ && !v || (Qc("starting game (button or space)"), T?.postCommand("/api/tetris/start").catch((e) => console.error("[pixi-debug] tetris start failed:", e)), _ = !0, v = !1, D());
 		};
 		h.addEventListener("click", O);
 		let k = (e) => {
@@ -8365,28 +8556,28 @@ var Wc = (e, t, n) => {
 			if (e.key === " " || e.key === "Enter") {
 				if (e.preventDefault(), _ && !v) {
 					let t = e.key === " " ? "hardDrop" : "rotate";
-					qc("input command:", t), T?.postCommand("/api/tetris/input", JSON.stringify({ command: t })).catch((e) => console.error("[pixi-debug] tetris input failed:", e));
+					Qc("input command:", t), T?.postCommand("/api/tetris/input", JSON.stringify({ command: t })).catch((e) => console.error("[pixi-debug] tetris input failed:", e));
 				} else O();
 				return;
 			}
-			let t = Kc[e.key];
-			t && (e.preventDefault(), qc("input command:", t), T?.postCommand("/api/tetris/input", JSON.stringify({ command: t })).catch((e) => console.error("[pixi-debug] tetris input failed:", e)));
+			let t = Zc[e.key];
+			t && (e.preventDefault(), Qc("input command:", t), T?.postCommand("/api/tetris/input", JSON.stringify({ command: t })).catch((e) => console.error("[pixi-debug] tetris input failed:", e)));
 		};
 		return window.addEventListener("keydown", M), T = Yr(r.streamUrl), T ? (T.addSignalListener("tetris-move", (e) => {
 			try {
 				let t = JSON.parse(e);
-				C = Math.max(1, t.stepMs ?? 1e3 / 60), w.removeWhere((e) => e < 1e3), w.ingest(t.sprites, t.seq, t.epoch), A(t.score, t.rows, t.level, t.gameOver, t.started), t.locked && qc("ECS event: piece locked, cleared lines", t.linesCleared);
+				C = Math.max(1, t.stepMs ?? 1e3 / 60), w.removeWhere((e) => e < 1e3), w.ingest(t.sprites, t.seq, t.epoch), A(t.score, t.rows, t.level, t.gameOver, t.started), t.locked && Qc("ECS event: piece locked, cleared lines", t.linesCleared);
 			} catch (e) {
 				console.error("[pixi-debug] tetris-move parse failed:", e);
 			}
 		}), T.addBufferListener("tetris-move", (e) => {
 			try {
 				w.removeWhere((e) => e < 1e3);
-				let t = w.ingestFromBuffer(e, Yc, Jc);
+				let t = w.ingestFromBuffer(e, el, $c);
 				if (!t) return;
 				C = Math.max(1, t.stepMs);
 				let n = e[6], r = e[7], i = e[8], a = Q(e[9]), o = Q(e[10]), s = Q(e[11]), c = e[12];
-				A(n, r, i, a, o), s && qc("ECS event: piece locked, cleared lines", c);
+				A(n, r, i, a, o), s && Qc("ECS event: piece locked, cleared lines", c);
 			} catch (e) {
 				console.error("[pixi-debug] tetris-move buffer decode failed:", e);
 			}
@@ -8396,61 +8587,61 @@ var Wc = (e, t, n) => {
 	},
 	"games/breakout": gs,
 	"games/asteroids": $o,
-	"games/racer": Tc,
+	"games/racer": Ac,
 	"games/pacman": Qs
-}, Zc = null, Qc = null, $c = null;
-function el(e) {
-	Zc = e;
+}, nl = null, rl = null, il = null;
+function al(e) {
+	nl = e;
 }
-function tl() {
-	let e = $c;
-	if ($c = null, e) try {
+function ol() {
+	let e = il;
+	if (il = null, e) try {
 		e();
 	} catch (e) {
 		console.error("[pixi-debug] scene cleanup error:", e);
 	}
-	Qc &&= (Qc.destroy({ children: !0 }), null);
+	rl &&= (rl.destroy({ children: !0 }), null);
 }
-async function nl(e) {
-	if (!Zc) throw Error("[pixi-debug] scene manager not initialized");
+async function sl(e) {
+	if (!nl) throw Error("[pixi-debug] scene manager not initialized");
 	let { exampleId: t } = e;
 	if (!t) return;
-	let n = Xc[t];
+	let n = tl[t];
 	if (!n) {
 		console.error(`[pixi-debug] no scene registered for exampleId '${t}'`);
 		return;
 	}
-	tl(), Qc = new k(), Zc.stage.addChild(Qc);
-	let r = { root: Qc };
+	ol(), rl = new k(), nl.stage.addChild(rl);
+	let r = { root: rl };
 	try {
-		let t = await n(Zc, e, r);
-		typeof t == "function" && ($c = t);
+		let t = await n(nl, e, r);
+		typeof t == "function" && (il = t);
 	} catch (e) {
-		console.error(`[pixi-debug] scene '${t}' failed:`, e), tl();
+		console.error(`[pixi-debug] scene '${t}' failed:`, e), ol();
 	}
 }
 //#endregion
 //#region Frontend/game.ts
-var rl = (...e) => console.log("[pixi-debug]", ...e), il = null, al = null, ol = null;
-async function sl(e) {
-	if (rl("initGame called, containerId =", e), al = document.getElementById(e), !al) {
+var cl = (...e) => console.log("[pixi-debug]", ...e), ll = null, ul = null, dl = null;
+async function fl(e) {
+	if (cl("initGame called, containerId =", e), ul = document.getElementById(e), !ul) {
 		console.error(`[pixi-debug] container '#${e}' NOT found in DOM`);
 		return;
 	}
-	rl("container found, client size =", al.clientWidth, "x", al.clientHeight), await new Promise((e) => setTimeout(e, 50)), rl("layout wait done, client size now =", al.clientWidth, "x", al.clientHeight), (al.clientWidth === 0 || al.clientHeight === 0) && (console.warn(`[pixi-debug] PixiJS Target Container '${e}' has a 0px boundary size. Forcing fallback dimensions.`), al.style.width = "100vw", al.style.height = "100vh"), rl("creating PixiJS Application"), il = new Ge(), await il.init({
-		resizeTo: al,
+	cl("container found, client size =", ul.clientWidth, "x", ul.clientHeight), await new Promise((e) => setTimeout(e, 50)), cl("layout wait done, client size now =", ul.clientWidth, "x", ul.clientHeight), (ul.clientWidth === 0 || ul.clientHeight === 0) && (console.warn(`[pixi-debug] PixiJS Target Container '${e}' has a 0px boundary size. Forcing fallback dimensions.`), ul.style.width = "100vw", ul.style.height = "100vh"), cl("creating PixiJS Application"), ll = new Ge(), await ll.init({
+		resizeTo: ul,
 		backgroundAlpha: 1,
 		autoDensity: !0,
 		antialias: !0,
 		hello: !0
-	}), rl("Pixy Active Renderer Type:", il.renderer.type), rl("app.init succeeded, canvas size =", il.canvas.width, "x", il.canvas.height), al.appendChild(il.canvas), rl("canvas appended to container"), el(il), ri(il.ticker), si(), window.addEventListener("resize", ll);
+	}), cl("Pixy Active Renderer Type:", ll.renderer.type), cl("app.init succeeded, canvas size =", ll.canvas.width, "x", ll.canvas.height), ul.appendChild(ll.canvas), cl("canvas appended to container"), al(ll), ri(ll.ticker), si(), window.addEventListener("resize", ml);
 }
-function cl(e) {
-	if (rl("renderText called, message =", JSON.stringify(e)), !il || !al) {
+function pl(e) {
+	if (cl("renderText called, message =", JSON.stringify(e)), !ll || !ul) {
 		console.error("[pixi-debug] renderText skipped: PixiJS app or container is not initialized");
 		return;
 	}
-	ol || (rl("creating PixiJS Text object"), ol = new J({
+	dl || (cl("creating PixiJS Text object"), dl = new J({
 		text: "",
 		style: new ke({
 			fontFamily: "Arial",
@@ -8458,17 +8649,17 @@ function cl(e) {
 			fontWeight: "bold",
 			fill: "#ffffff"
 		})
-	}), ol.anchor.set(.5), il.stage.addChild(ol), rl("Text created and added to stage")), ol.text = e, rl("text set, measured size =", ol.width, "x", ol.height), ll();
+	}), dl.anchor.set(.5), ll.stage.addChild(dl), cl("Text created and added to stage")), dl.text = e, cl("text set, measured size =", dl.width, "x", dl.height), ml();
 }
-function ll() {
-	!ol || !al || (ol.x = al.clientWidth / 2, ol.y = al.clientHeight / 2, rl("message centered at", ol.x, ",", ol.y));
+function ml() {
+	!dl || !ul || (dl.x = ul.clientWidth / 2, dl.y = ul.clientHeight / 2, cl("message centered at", dl.x, ",", dl.y));
 }
-async function ul(e) {
-	if (rl("renderScene called, message =", JSON.stringify(e)), !il || !al) {
+async function hl(e) {
+	if (cl("renderScene called, message =", JSON.stringify(e)), !ll || !ul) {
 		console.error("[pixi-debug] renderScene skipped: PixiJS app or container is not initialized");
 		return;
 	}
-	ol &&= (ol.destroy(), null);
+	dl &&= (dl.destroy(), null);
 	let t = null;
 	try {
 		let n = JSON.parse(e);
@@ -8477,13 +8668,13 @@ async function ul(e) {
 		t = null;
 	}
 	if (!t?.exampleId) {
-		cl(e);
+		pl(e);
 		return;
 	}
-	await nl(t);
+	await sl(t);
 }
-rl("game-bundle loaded, exposing window.initGame / window.renderText / window.renderScene"), window.initGame = sl, window.renderText = cl, window.renderScene = ul, window.togglePixiStats = ii, window.toggleCSharpStats = ci, window.registerLocalBufferProvider = qr, window.dispatchEvent(new Event("pixi-bundle-ready"));
+cl("game-bundle loaded, exposing window.initGame / window.renderText / window.renderScene"), window.initGame = fl, window.renderText = pl, window.renderScene = hl, window.togglePixiStats = ii, window.toggleCSharpStats = ci, window.registerLocalBufferProvider = qr, window.dispatchEvent(new Event("pixi-bundle-ready"));
 //#endregion
-export { sl as initGame, ul as renderScene, cl as renderText };
+export { fl as initGame, hl as renderScene, pl as renderText };
 
 //# sourceMappingURL=game-bundle.js.map

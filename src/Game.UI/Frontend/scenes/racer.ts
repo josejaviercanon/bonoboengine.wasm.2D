@@ -1,10 +1,12 @@
-import { Assets, Container, Graphics, Rectangle, Sprite, Text, TextStyle, Texture, TilingSprite } from 'pixi.js';
+import { Assets, Container, Rectangle, Sprite, Text, TextStyle, Texture, TilingSprite } from 'pixi.js';
 import { sound } from '@pixi/sound';
 import type { SceneBuilder } from './types';
 import { publishCSharpStats } from '../stats/overlays';
 import { SnapshotBuffer, lerp, lerpWrapped } from './interpolation';
 import { connectSignalStream, getLocalBufferProvider, type SignalStream } from './signalSource';
 import { BUFFER_HEADER_LENGTH, floatBool, readSignalHeader, type EntityDecoder } from './bufferLayout';
+import { RoadMesh } from './roadMesh';
+import { FogOverlay } from './fogOverlay';
 
 const FAST_LAP_STORAGE_KEY = 'racer-fast-lap';
 const DEFAULT_FAST_LAP_SECONDS = 180;
@@ -213,13 +215,6 @@ const DEFAULT_SETTINGS: RacerSettings = {
     resolutionScale: 1,
 };
 
-const COLORS: Record<number, { road: number; grass: number; rumble: number; lane: number | null }> = {
-    [SEGMENT_LIGHT]: { road: 0x6b6b6b, grass: 0x10aa10, rumble: 0x555555, lane: 0xcccccc },
-    [SEGMENT_DARK]: { road: 0x696969, grass: 0x009a00, rumble: 0xbbbbbb, lane: null },
-    [SEGMENT_START]: { road: 0xffffff, grass: 0xffffff, rumble: 0xffffff, lane: null },
-    [SEGMENT_FINISH]: { road: 0x000000, grass: 0x000000, rumble: 0x000000, lane: null },
-};
-
 const SKY_SPEED = 0.001;
 const HILL_SPEED = 0.002;
 const TREE_SPEED = 0.003;
@@ -313,8 +308,8 @@ class SpritePool {
         texture: Texture,
         x: number,
         y: number,
-        width: number,
-        height: number,
+        scaleX: number,
+        scaleY: number,
     ): void {
         if (this.cursor >= this.sprites.length) this.createEntry();
         const sprite = this.sprites[this.cursor];
@@ -323,15 +318,14 @@ class SpritePool {
         sprite.texture = texture;
         sprite.x = x;
         sprite.y = y;
-        sprite.width = width;
-        sprite.height = height;
+        sprite.scale.set(scaleX, scaleY);
         sprite.visible = true;
         sprite.alpha = 1;
         sprite.tint = 0xffffff;
     }
 
     finish(): void {
-        for (let i = this.cursor; i < this.sprites.length; i++) {
+        for (let i = 0; i < this.cursor; i++) {
             this.sprites[i].visible = false;
         }
         this.cursor = 0;
@@ -486,11 +480,17 @@ export const racerScene: SceneBuilder = async (app, params, ctx) => {
     ]);
 
     const world = new Container();
-    const roadGraphics = new Graphics();
+    // Road mesh (instanced rendering)
+    const roadMesh = new RoadMesh(app, 400);
     const sceneryContainer = new Container();
     const carContainer = new Container();
     const playerContainer = new Container();
-    world.addChild(sceneryContainer, roadGraphics, carContainer, playerContainer);
+    world.addChild(sceneryContainer, roadMesh.getMesh(), carContainer, playerContainer);
+    
+    // Fog overlay (single quad shader)
+    const fogOverlay = new FogOverlay(app);
+    world.addChild(fogOverlay.getMesh());
+    
     ctx.root.addChild(world);
 
     const layerTextures = [
@@ -749,93 +749,15 @@ export const racerScene: SceneBuilder = async (app, params, ctx) => {
         };
     };
 
-    // --- Road rendering ------------------------------------------------------
-    // The per-segment `poly().fill()` approach emitted ~drawDistance × 6 draw
-    // calls per frame, each tessellating its own geometry — the dominant render
-    // cost. Instead, bucket polygons by fill color and fill each color once.
-    // Segments are vertically non-overlapping thanks to the maxY clip, so
-    // reordering across segments (by color) is visually safe.
-    type RoadPoly = number[];
+    // --- Reusable buffers (avoid per-frame allocations) ----------------------
+    const projectedSegmentsBuffer = new Map<number, ProjectedSegment>();
+    const orderedSegmentsBuffer: ProjectedSegment[] = [];
+    const carsBySegmentBuffer = new Map<number, RacerCarState[]>();
 
-    const pushRoadPoly = (bucket: Map<number, RoadPoly[]>, color: number, points: RoadPoly): void => {
-        const list = bucket.get(color);
-        if (list) list.push(points);
-        else bucket.set(color, [points]);
-    };
-
-    const drawRoadBucket = (bucket: Map<number, RoadPoly[]>): void => {
-        for (const [color, polys] of bucket) {
-            for (const points of polys) {
-                roadGraphics.moveTo(points[0], points[1]);
-                for (let i = 2; i + 1 < points.length; i += 2) {
-                    roadGraphics.lineTo(points[i], points[i + 1]);
-                }
-                roadGraphics.closePath();
-            }
-            roadGraphics.fill(color);
-        }
-    };
-
-    const drawRoad = (ordered: ProjectedSegment[], width: number): void => {
-        const grass = new Map<number, RoadPoly[]>();
-        const rumble = new Map<number, RoadPoly[]>();
-        const road = new Map<number, RoadPoly[]>();
-        const lane = new Map<number, RoadPoly[]>();
-
-        for (const projected of ordered) {
-            const { p1, p2, segment } = projected;
-            const palette = COLORS[segment.color] ?? COLORS[SEGMENT_LIGHT];
-            const rumble1 = p1.w / Math.max(6, 2 * settings.lanes);
-            const rumble2 = p2.w / Math.max(6, 2 * settings.lanes);
-            const lane1 = p1.w / Math.max(32, 8 * settings.lanes);
-            const lane2 = p2.w / Math.max(32, 8 * settings.lanes);
-
-            const grassH = Math.max(0, p1.y - p2.y);
-            if (grassH > 0) {
-                pushRoadPoly(grass, palette.grass, [0, p2.y, width, p2.y, width, p1.y, 0, p1.y]);
-            }
-            pushRoadPoly(rumble, palette.rumble, [p1.x - p1.w - rumble1, p1.y, p1.x - p1.w, p1.y, p2.x - p2.w, p2.y, p2.x - p2.w - rumble2, p2.y]);
-            pushRoadPoly(rumble, palette.rumble, [p1.x + p1.w + rumble1, p1.y, p1.x + p1.w, p1.y, p2.x + p2.w, p2.y, p2.x + p2.w + rumble2, p2.y]);
-            pushRoadPoly(road, palette.road, [p1.x - p1.w, p1.y, p1.x + p1.w, p1.y, p2.x + p2.w, p2.y, p2.x - p2.w, p2.y]);
-
-            if (palette.lane !== null) {
-                const laneWidth1 = p1.w * 2 / settings.lanes;
-                const laneWidth2 = p2.w * 2 / settings.lanes;
-                let laneX1 = p1.x - p1.w + laneWidth1;
-                let laneX2 = p2.x - p2.w + laneWidth2;
-                for (let l = 1; l < settings.lanes; l++) {
-                    pushRoadPoly(lane, palette.lane, [
-                        laneX1 - lane1 / 2, p1.y, laneX1 + lane1 / 2, p1.y,
-                        laneX2 + lane2 / 2, p2.y, laneX2 - lane2 / 2, p2.y,
-                    ]);
-                    laneX1 += laneWidth1;
-                    laneX2 += laneWidth2;
-                }
-            }
-        }
-
-        drawRoadBucket(grass);
-        drawRoadBucket(rumble);
-        drawRoadBucket(road);
-        drawRoadBucket(lane);
-
-        // Fog: quantize per-segment alpha into coarse levels so the distance
-        // fade survives but collapses to a handful of draws instead of one per
-        // segment.
-        const fogBuckets = new Map<number, RoadPoly[]>();
-        for (const projected of ordered) {
-            const { p1, p2, fog } = projected;
-            if (fog >= 1) continue;
-            const level = Math.round((1 - fog) * 24);
-            if (level <= 0) continue;
-            const grassH = Math.max(0, p1.y - p2.y);
-            if (grassH <= 0) continue;
-            pushRoadPoly(fogBuckets, level, [0, p2.y, width, p2.y, width, p1.y, 0, p1.y]);
-        }
-        for (const [level, polys] of fogBuckets) {
-            for (const points of polys) roadGraphics.poly(points);
-            roadGraphics.fill({ color: 0x005108, alpha: level / 24 });
-        }
+    const clearRenderBuffers = (): void => {
+        projectedSegmentsBuffer.clear();
+        orderedSegmentsBuffer.length = 0;
+        carsBySegmentBuffer.clear();
     };
 
     const drawSprite = (
@@ -860,7 +782,12 @@ export const racerScene: SceneBuilder = async (app, params, ctx) => {
         const visibleHeight = Math.min(spriteHeight, Math.max(0, clipY - top));
         if (visibleHeight <= 0 || spriteWidth <= 0) return;
 
-        pool.acquire(texture, left, top, spriteWidth, visibleHeight);
+        const baseWidth = texture.orig.width;
+        const baseHeight = texture.orig.height;
+        const scaleX = spriteWidth / baseWidth;
+        const scaleY = visibleHeight / baseHeight;
+
+        pool.acquire(texture, left, top, scaleX, scaleY);
     };
 
     // --- Sprite pools (pre-allocated, reused across frames) -------------------
@@ -977,9 +904,9 @@ export const racerScene: SceneBuilder = async (app, params, ctx) => {
         let maxY = height;
         let x = 0;
         let dx = -(segments[normalizedBaseIndex]?.curve ?? 0) * basePercent;
-        const projectedSegments = new Map<number, ProjectedSegment>();
 
-        roadGraphics.clear();
+        clearRenderBuffers();
+
         sceneryPool.finish();
         carPool.finish();
         playerPool.finish();
@@ -989,7 +916,34 @@ export const racerScene: SceneBuilder = async (app, params, ctx) => {
         backgroundLayers[1].tilePosition.set(-hillOffset * 1280, height * 0.002 * playerY);
         backgroundLayers[2].tilePosition.set(-treeOffset * 1280, height * 0.003 * playerY);
 
-        const orderedSegments: ProjectedSegment[] = [];
+        // Update road mesh (instanced rendering)
+        roadMesh.update({
+            playerX: renderedPlayer.x * settings.roadWidth,
+            playerZ: renderedPlayer.z,
+            cameraY,
+            cameraDepth,
+            width,
+            height,
+            roadWidth: settings.roadWidth,
+            drawDistance: settings.drawDistance,
+            fogDensity: settings.fogDensity,
+            segments,
+            normalizedBaseIndex,
+            x,
+            dx,
+        });
+
+        // Update fog overlay
+        fogOverlay.update({
+            fogDensity: settings.fogDensity,
+            drawDistance: settings.drawDistance,
+            cameraDepth,
+            cameraY,
+            playerZ: renderedPlayer.z,
+            segmentLength,
+        });
+
+        // Still need to build projected segments for sprite rendering (cars, scenery, player)
         for (let n = 0; n < settings.drawDistance; n++) {
             const segment = segments[(normalizedBaseIndex + n) % segments.length];
             if (!segment) continue;
@@ -1006,26 +960,24 @@ export const racerScene: SceneBuilder = async (app, params, ctx) => {
             if (p1.cameraZ <= cameraDepth || p2.y >= p1.y || p2.y >= maxY) continue;
             maxY = p1.y;
             projected.clip = maxY;
-            projectedSegments.set(segment.index, projected);
-            orderedSegments.push(projected);
+            projectedSegmentsBuffer.set(segment.index, projected);
+            orderedSegmentsBuffer.push(projected);
         }
-        drawRoad(orderedSegments, width);
 
-        const carsBySegment = new Map<number, RacerCarState[]>();
         for (const car of renderedCars) {
             const index = Math.floor(car.z / segmentLength) % segments.length;
             const normalized = index < 0 ? index + segments.length : index;
-            const list = carsBySegment.get(normalized) ?? [];
-            list.push(car);
-            carsBySegment.set(normalized, list);
+            const list = carsBySegmentBuffer.get(normalized);
+            if (list) list.push(car);
+            else carsBySegmentBuffer.set(normalized, [car]);
         }
 
         for (let n = settings.drawDistance - 1; n > 0; n--) {
             const segment = segments[(normalizedBaseIndex + n) % segments.length];
             if (!segment) continue;
-            const projected = projectedSegments.get(segment.index);
+            const projected = projectedSegmentsBuffer.get(segment.index);
             if (!projected) continue;
-            const segmentCars = carsBySegment.get(segment.index) ?? [];
+            const segmentCars = carsBySegmentBuffer.get(segment.index) ?? [];
             for (const car of segmentCars) {
                 const carScale = interpolate(projected.p1.scale, projected.p2.scale, car.percent);
                 const carX = interpolate(projected.p1.x, projected.p2.x, car.percent) +
@@ -1283,6 +1235,8 @@ export const racerScene: SceneBuilder = async (app, params, ctx) => {
         hudTime.destroy();
         hudLast.destroy();
         hudFast.destroy();
+        roadMesh.destroy();
+        fogOverlay.destroy();
         for (const texture of textureCache.values()) texture.destroy();
         for (const texture of layerTextures) texture.destroy();
     };
