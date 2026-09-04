@@ -1,4 +1,4 @@
-# Bonobo Blazorwasm Engine — The Stack
+# Bonobo Engine — The Stack
 
 **This file is the source of truth for the engine's stack, architecture, and project structure.** It is maintained to match the repository; when code and prose disagree, this file (kept current) wins. Verified API facts live in `docs/ai-agents/codebase-truth.md`; build state and agent workflow live in `AGENTS.md`. `README.md` mirrors this file for GitHub visitors.
 
@@ -6,7 +6,7 @@
 
 ## Mission
 
-Computing your entire game logic inside C#. It allows you to build a single, authoritative simulation engine that runs client-side inside .NET MAUI or Blazor today, and can be dropped directly onto a dedicated .NET Linux server tomorrow for authoritative multiplayer.
+Computing your entire game logic inside C#. It allows you to build a single, authoritative simulation engine that runs client-side inside the browser-wasm host today, and can be dropped directly onto a dedicated .NET Linux server tomorrow for authoritative multiplayer.
 
 To make this architecture work without destroying performance, you must isolate the **Simulation Layer (C#)** from the **Presentation Layer (PixiJS/Tailwind)**.
 
@@ -14,7 +14,7 @@ Here is the architectural blueprint to achieve this zero-duplicate-work setup.
 
 ## 🧱 The Authoritative C# Architecture
 
-To ensure your C# code can run both on the client (MVP) and the server (future), your core logic must have zero dependencies on UI libraries, MAUI, or Blazor.
+To ensure your C# code can run both on the client (MVP) and the server (future), your core logic must have zero dependencies on UI libraries, MAUI, or browser APIs.
 
 You should split your codebase into three distinct layers:
 
@@ -29,27 +29,27 @@ You should split your codebase into three distinct layers:
                    |                                       |
 +--------------------------------------+   +--------------------------------------+
 |        2. PRESENTATION BRIDGE        |   |       3. FUTURE SERVER HOSTER        |
-|  - Blazor Component Shell            |   |  - ASP.NET Core Minimal API / WebSockets
-|  - IJSRuntime Skinny Bridge          |   |  - Runs the exact same Core Engine   |
-|  - Maps C# State changes to PixiJS   |   |  - Verifies incoming client commands |
+|  - Non-Blazor browser-wasm host     |   |  - ASP.NET Core Minimal API / WebSockets
+|  - [JSImport]/[JSExport] interop    |   |  - Runs the exact same Core Engine   |
+|  - Pinned shared memory (Float32Array over WASM heap) |   |  - Verifies incoming client commands |
 +--------------------------------------+   +--------------------------------------+
 ```
 
 1. **The Core Simulation Engine (Pure C#)** — a standard .NET Class Library. It knows absolutely nothing about graphics, rendering, or browsers.
    - *State Management:* manages coordinates, stats, pathfinding matrices, and entity maps.
    - *The Deterministic Tick:* runs the Arch ECS systems each fixed step (e.g., `MovementSystem`, `ColorSystem`) and emits one **batched** render signal (`EcsRenderSignal`) per interval — not one event per entity — so the presentation layer mirrors authoritative state without per-frame interop. A `ProcessCommand` command pattern is the planned input boundary (ADR-003).
-2. **The Presentation Layer (Blazor + PixiJS + Tailwind)** — a pure mirror of your C# state.
-   - *Tailwind UI:* Blazor hooks into C# state to display inventories or menus using standard data-binding.
-   - *PixiJS Canvas:* instead of polling C# for positions 60 times a second, PixiJS sits idle until the C# engine emits a batched render signal. The host streams that batched payload to PixiJS (SSE on the web host; `IJSRuntime` on MAUI Hybrid), and PixiJS animates only the sprites that changed.
+2. **The Presentation Layer (PixiJS + Tailwind)** — a pure mirror of your C# state.
+    - *Tailwind UI:* HTML/CSS displays inventories or menus using TypeScript DOM interaction.
+    - *PixiJS Canvas:* instead of polling C# for positions 60 times a second, PixiJS reads transform data directly from the shared WASM memory buffer (`Float32Array` view over pinned `GCHandle`). The engine writes batched render snapshots into the buffer each tick; PixiJS interpolates and renders at display Hz (ADR-008).
 
 ### ⚠️ The Performance Gold Rule: Avoid JSON Serialization
 
-Polling C# from JavaScript every frame, or serializing the whole state tree per frame, will reduce your game's frame rate down to single digits. You **must** use a **Push-Based Delta Event** approach: the engine emits a batched render signal and the host streams it to PixiJS (SSE on the web host; `IJSRuntime` on MAUI Hybrid).
+Polling C# from JavaScript every frame, or serializing the whole state tree per frame, will reduce your game's frame rate down to single digits. You **must** use a **Push-Based Delta Event** approach: the engine writes batched render snapshots into a pinned shared-memory buffer and notifies JS via `[JSImport]("notifyRender")` — JS reads a zero-copy `Float32Array` view over the WASM heap.
 
 - ❌ **Bad (Polling):** PixiJS loops at 60fps and calls C# via interop — "Where is everyone right now?" C# serializes 500 characters into JSON and passes it back.
-- ✅ **Good (Batched Delta Push):** the C# engine finishes a tick and emits one batched `EcsRenderSignal` (`SpriteState[]`). The web host streams it to PixiJS over SSE (`event: sprite-move`); PixiJS updates only the sprites that changed. (MAUI Hybrid uses `IJSRuntime` for the same batched push.)
+- ✅ **Good (Batched Delta Push):** the C# engine finishes a tick and writes batched transform snapshots into a pinned float array. JS receives a pointer via `[JSImport]("notifyRender")` and reads `new Float32Array(wasmHeap, ptr, count)` over the WASM heap — zero copies, no JSON, no interop per entity.
 
-**2.1. UI:** keep the presentation layer thin. Use Razor components and Tailwind CSS for menus, inventories, and HUD. Drop a standard HTML5 `<canvas>` inside that Razor view, and use a modular, object-oriented vanilla TypeScript/JavaScript file to initialize PixiJS and map incoming C# events directly to sprites. Bypassing the React wrapper keeps the application simple, clean, and fast.
+**2.1. UI:** keep the presentation layer thin. Use Tailwind CSS for menus, inventories, and HUD. Drop a standard HTML5 `<canvas>` directly in the page, and use modular TypeScript to initialize PixiJS and read transform data from the shared WASM memory buffer. Bypassing heavy frameworks keeps the application simple, clean, and fast.
 
 ## 🧬 Engine Topology: Simulation ↔ Presentation ↔ Render
 
@@ -102,7 +102,7 @@ public sealed class EcsSimulation : IDisposable
 }
 ```
 
-No per-entity `EntityMoved` events and no `IJSRuntime` calls from the engine: state leaves the simulation only as a batched render signal (the "Performance Gold Rule"; ADR-003 refines this toward `TransformSnapshot` + shared-memory).
+No per-entity `EntityMoved` events and no interop calls from the engine: state leaves the simulation only as a batched render signal written into the pinned shared-memory buffer (the "Performance Gold Rule"; ADR-003 refines this toward `TransformSnapshot` + shared-memory).
 
 ### Step 2: The Static-SSR Host + SSE Bridge (legacy blueprint — superseded by ADR-008/009)
 
@@ -217,7 +217,7 @@ By designing your MVP this way, moving to a multiplayer model becomes a structur
 - You pluck your Shared Core Engine project out of the client build and compile it into a headless ASP.NET Core console application hosted on Linux.
 - Instead of your client UI executing commands directly against a local `GameSimulation` instance, your client UI serializes the `MoveCommand` and shoots it over a SignalR or WebSocket connection.
 - The server runs the command through the exact same C# simulation code, processes the ticks, and broadcasts the batched `EcsRenderSignal` across the network to all connected clients.
-- Your Blazor/PixiJS setup handles the network event exactly like it handled the local event during the MVP phase.
+- Your PixiJS setup handles the network event exactly like it handled the local event during the MVP phase.
 
 ## Sourced Ecosystem Libraries & Starting Points
 
@@ -232,8 +232,8 @@ The architectural stack uses specialized, lightweight libraries designed for max
 
 When working with an MCP-capable AI agent:
 
-- **`docs/2d-games`** and **`docs/game-development`** — structured game design patterns, structural gamedev guides, and documentation contexts aligned with this engine's stack (Arch ECS simulation + PixiJS presentation + Blazor/Tailwind UI). They keep the agent anchored to professional game-loop conventions.
-  - `docs/2d-games` is the "Universal 2D Engine Toolkit" reference, aligned to the Bonobo stack: architecture/reference docs reflect Arch ECS + PixiJS v8 + Tailwind + Blazor + System.Text.Json; concept guides are engine-agnostic.
+- **`docs/2d-games`** and **`docs/game-development`** — structured game design patterns, structural gamedev guides, and documentation contexts aligned with this engine's stack (Arch ECS simulation + PixiJS presentation + Tailwind UI). They keep the agent anchored to professional game-loop conventions.
+  - `docs/2d-games` is the "Universal 2D Engine Toolkit" reference, aligned to the Bonobo stack: architecture/reference docs reflect Arch ECS + PixiJS v8 + Tailwind + System.Text.Json; concept guides are engine-agnostic.
   - `docs/game-development` is the curated, engine-agnostic subset (concepts, programming, game design, project management, AI workflow).
   - `docs/game-entity-component-system/` mirrors the toolkit reorganized into `guides/` + `reference/` and carries the Bonobo-specific ECS rules (`bonobo-ECS-rules.md`).
 - **`net-microsoft-documentation` MCP server:** connects to Microsoft Learn via streamable HTTP, letting agents search documentation, fetch complete articles, and search code samples — trusted, up-to-date Microsoft knowledge ([source](https://learn.microsoft.com/en-us/training/support/mcp)).

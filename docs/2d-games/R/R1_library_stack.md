@@ -30,26 +30,26 @@ The simulation core is a pure .NET 10 class library with **zero** UI/platform de
 
 ---
 
-## Tier 1: Presentation Layer (Blazor + PixiJS + Tailwind)
+## Tier 1: Presentation Layer (PixiJS + Tailwind)
 
-The presentation layer is a shared Razor Class Library (`src/Game.UI`) that references `Game.Engine` and owns the PixiJS frontend plus the Blazor component shell. It is a pure mirror of C# state — never authoritative.
+The presentation layer is a plain class library (`src/Game.UI`, `Microsoft.NET.Sdk`, non-Razor) that references `Game.Engine` and owns the PixiJS v8 frontend. `Game.Engine.Generators` is a Roslyn analyzer + source generator project that enforces the zero-copy float32 layout contract: `[TypeScriptExport]` attribute, `LayoutAlignmentAnalyzer` (BNOBO001 stride mismatch, BNOBO002 unsupported field), and `TypeScriptInterfaceGenerator` emitting `GeneratedSignalLayout` + `[ModuleInitializer]` static assert + generated TypeScript at `src/Game.UI/Frontend/scenes/generated/signalLayout.ts`.
 
 | Concern | Provider | Version | Notes |
 |---------|----------|---------|-------|
 | 2D rendering | PixiJS | ^8.19.0 | WebGL/WebGPU; bundled by Vite → `wwwroot/dist` |
-| JS build | Vite + TypeScript | ^8.2.1 / ^7.0.2 | IIFE lib bundle (`Frontend/game.ts`) |
-| UI components | Blazor (`Microsoft.AspNetCore.Components.Web`) | 10.0.10 | HUD, menus, inventories |
-| CSS / theme | Tailwind CSS v4 (`@tailwindcss/cli`) | ^4.3.3 | responsive HUD/menus |
+| JS build | Vite + TypeScript | ^6.3.5 / ^5.8.3 | ESM bundle (`Frontend/game.ts`) |
+| CSS / theme | Tailwind CSS v4 (`@tailwindcss/vite`) | ^4.3.3 | responsive HUD/menus |
+| Layout sync | `Game.Engine.Generators` | — | Roslyn analyzer + source gen; validates float32 stride, emits TS types |
 | Fonts / text | PixiJS Text + web fonts | — | no runtime font library |
 
 ```bash
 # Frontend deps live in src/Game.UI/package.json, not in the .NET project
 cd src/Game.UI
 npm ci
-npm run build     # Vite JS build, then Tailwind CLI → wwwroot/dist
+npm run build     # Vite JS build → wwwroot/dist
 ```
 
-> **Push-based bridge:** `Game.UI` forwards engine delta events to PixiJS via `IJSRuntime` (flat payloads, never per-frame polling). See `docs/index.md` "Performance Gold Rule".
+> **Zero-copy shared-memory bridge:** C# pins transform buffers via `GCHandle.Alloc(..., GCHandleType.Pinned)`. JS projects a `Float32Array` view over `WebAssembly.Memory.buffer` and reads sprite transforms directly — no per-entity interop calls, no JSON serialization. `[JSImport] notifyRender` signals the render frame. See `FLOAT32_LAYOUT_SYNC` rule.
 > **No `Content.Load<T>` / MGCB.** Assets are bundled by Vite and resolved client-side by PixiJS by key/id.
 
 ---
@@ -58,14 +58,14 @@ npm run build     # Vite JS build, then Tailwind CLI → wwwroot/dist
 
 | Concern | Provider | Notes |
 |---------|----------|-------|
-| Web host | `src/Game.Web` — Blazor Web App (static SSR) | discovers shared RCL routes via `AddAdditionalAssemblies` |
-| Native host | `src/Game.Maui` — .NET MAUI Blazor Hybrid | Android default; iOS/MacCatalyst/Windows conditional TFMs |
+| Browser-WASM host | `src/Game.Wasm` — `Microsoft.NET.Sdk.WebAssembly` (non-Blazor) | boots via `import { dotnet } from './_framework/dotnet.js'`; hosts simulations per scene |
+| Simulation catalog | `src/Game.Examples` — `ExamplesCatalog.cs` + `IExampleSims` seam | referenced by `Game.Wasm` |
 | Future server | ASP.NET Core + WebSockets/SignalR | runs the **same** `Game.Engine` authoritatively (phase 2) |
 | Networking (future) | ASP.NET Core SignalR / raw WebSockets | web transport — not a native UDP library |
 
 ```bash
-dotnet watch --project src/Game.Web      # run web host
-dotnet build src/Game.Maui               # MAUI (requires MAUI workloads)
+dotnet run --project src/Game.Wasm      # run browser-wasm host (serves on localhost)
+# No MAUI target — web-only builds for speed (Game.Maui temporarily commented out of solution)
 ```
 
 ---
@@ -81,14 +81,14 @@ C# libraries with **no** native game-framework dependency that you may vendor or
 | AI (FSM/BT/GOAP) | BrainAI (GitHub source) | engine-agnostic C#; vendor as source |
 | Pathfinding | Roy-T.AStar (NuGet) | standalone A*; no framework dependency |
 | Coroutines | Ellpeck/Coroutine (NuGet) | Unity-style yield; C# only |
-| Debug overlays | browser DevTools / Blazor | no ImGui needed on web |
+| Debug overlays | browser DevTools / PixiJS debug | no ImGui needed on web |
 
 ```bash
 # Roy-T.AStar: dotnet add package RoyT.AStar
 # BrainAI: clone from GitHub, vendor as source inside src/Game.Engine
 ```
 
-> **Rule:** any C# library added for simulation must stay inside `Game.Engine` and remain free of UI/platform deps. Presentation concerns (audio, rendering, input) are handled client-side by PixiJS/Blazor, not by C# libraries.
+> **Rule:** any C# library added for simulation must stay inside `Game.Engine` and remain free of UI/platform deps. Presentation concerns (audio, rendering, input) are handled client-side by PixiJS + TypeScript, not by C# libraries.
 
 ---
 
@@ -120,20 +120,16 @@ These are written as part of your project. ~1,000 lines total, ~14.5 hours of wo
 
 ## Platform Hosts (no native game-framework runtime)
 
-The engine ships no native game-framework runtime. Mobile/desktop targets are provided by the .NET MAUI Blazor Hybrid host (`src/Game.Maui`); the web target is the Blazor Web App host (`src/Game.Web`). There is no MGCB content pipeline and no platform-specific game framework package.
+The engine ships no native game-framework runtime. The sole host target is the non-Blazor browser-WASM host (`src/Game.Wasm`, `Microsoft.NET.Sdk.WebAssembly`). There is no MAUI host, no Blazor Web App host, and no MGCB content pipeline. The `src/Game.UI` library is a plain class library (non-Razor) — assets are bundled by Vite, served as static web assets, and loaded by PixiJS client-side.
 
 | Host | TFM | Notes |
 |------|-----|-------|
-| `src/Game.Web` | `net10.0` | Blazor Web App, static SSR; serves the shared RCL + PixiJS bundle |
-| `src/Game.Maui` | `net10.0-android` (default) | MAUI Blazor Hybrid; adds `net10.0-ios`/`-maccatalyst`/`-windows10.0.19041.0` when OS/workloads allow |
+| `src/Game.Wasm` | `net10.0-browser` | non-Blazor WASM host; bootstraps via `dotnet.js`; simulates per scene |
 
 ```bash
-# MAUI workloads must be installed for non-Android TFMs
-dotnet workload restore
-dotnet build src/Game.Maui                 # Android by default
-dotnet build src/Game.Maui -t:Run -f net10.0-ios   # iOS sim/device (Apple Silicon)
+dotnet run --project src/Game.Wasm
 ```
 
-> **No native iOS game framework / content pipeline.** Assets are bundled by Vite (`src/Game.UI/wwwroot/dist`) and served as static web assets; the `BlazorWebView` loads the same RCL components as the web host. Set `SupportedOSPlatformVersion` per MAUI guidance (e.g. `15.0` for iOS) in `Game.Maui.csproj`.
+> **No MAUI, no Blazor, no native platform SDKs.** `Game.Maui` is temporarily commented out of the solution. All builds target WASM in browser. Assets are bundled by Vite (`src/Game.UI/wwwroot/dist`) and served as static web assets. Layout sync is enforced by `Game.Engine.Generators` — see `FLOAT32_LAYOUT_SYNC` rule.
 
 See [R3 Project Structure](./R3_project_structure.md) for the actual repo layout.

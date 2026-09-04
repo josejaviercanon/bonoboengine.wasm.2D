@@ -54,10 +54,10 @@ hide:
 .NET 10 (C# 14)                  — Simulation runtime + hosts
 Arch ECS (vendored source)       — Entity Component System for all game objects
 PixiJS v8 (WebGL/WebGPU)         — 2D rendering, sprites, filters, text
-Blazor + Tailwind CSS v4         — UI components, HUD, menus
+Tailwind CSS v4                  — UI components, HUD, menus
 System.Text.Json (source gen)    — AOT-safe serialization / delta frames
 Vite + TypeScript                 — Asset pipeline → wwwroot/dist
-Game.Web / Game.Maui             — Blazor Web App + MAUI Hybrid hosts
+Game.Wasm (browser-wasm host)    — Non-Blazor WebAssembly host
 ```
 
 ## How to Navigate

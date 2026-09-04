@@ -3,7 +3,7 @@
 
 > **Category:** Guide · **Related:** [G5 UI Framework](./G5_ui_framework.md) · [G8 Content Pipeline](./G8_content_pipeline.md) · [G26 Resource Loading & Caching](./G26_resource_loading_caching.md)
 
-> **Stack:** the engine · Arch ECS · the font rendering library · Blazor + Tailwind UI
+> **Stack:** the engine · Arch ECS · the font rendering library · Tailwind CSS UI
 
 Localization is the difference between a game that sells in one market and a game that sells globally. This guide covers practical i18n patterns for a the engine 2D game — from string externalization to RTL layout.
 
@@ -234,7 +234,7 @@ The same string in different languages can vary dramatically:
 | Russian | Начать игру | +10% |
 | Chinese | 开始游戏 | –60% |
 
-**Design rule:** Never hardcode text container sizes. Use Blazor/Tailwind's auto-sizing or measure text at runtime:
+**Design rule:** Never hardcode text container sizes. Use Tailwind CSS's auto-sizing or measure text at runtime:
 
 ```csharp
 Vector2 textSize = font.MeasureString(localizedText);

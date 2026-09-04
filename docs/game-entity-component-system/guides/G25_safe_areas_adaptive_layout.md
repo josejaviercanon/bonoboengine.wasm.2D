@@ -245,12 +245,12 @@ Desktop (16:9):   ████████████████████
 
 ---
 
-## Blazor + Tailwind UI and Safe Areas
+## Tailwind CSS UI and Safe Areas
 
 If using the UI framework for UI, configure layout containers to respect safe area margins:
 
 ```csharp
-// When setting up Blazor/Tailwind layout, apply safe area as margin on the root container
+// When setting up Tailwind CSS layout, apply safe area as margin on the root container
 var (top, bottom, left, right) = GetVirtualSafeInsets(virtualRes);
 
 rootContainer.Margin = new Margin(
@@ -348,4 +348,4 @@ public void DrawSafeAreaDebug(SpriteBatch spriteBatch, Texture2D pixel,
 - [G19 Display, Resolution & Viewports](./G19_display_resolution_viewports.md) — virtual resolution setup
 - [G21 Coordinate Systems & Transforms](./G21_coordinate_systems.md) — coordinate conversion for insets
 - [G24 Window & Display Management](./G24_window_display_management.md) — window config, iOS fullscreen
-- [G5 UI Framework](./G5_ui_framework.md) — Blazor/Tailwind layout system
+- [G5 UI Framework](./G5_ui_framework.md) — Tailwind CSS layout system

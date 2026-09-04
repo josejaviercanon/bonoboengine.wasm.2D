@@ -1,6 +1,6 @@
-# Blender-to-glTF 2.0 asset pipeline into a .NET Blazor WebAssembly (WASM) Entity Component System (ECS) engine rendering via PixiJS
+# Blender-to-glTF 2.0 asset pipeline into a .NET WebAssembly (WASM) Entity Component System (ECS) engine rendering via PixiJS
 
-Integrating a Blender-to-glTF 2.0 asset pipeline into a .NET Blazor WebAssembly (WASM) Entity Component System (ECS) engine rendering via PixiJS requires mapping open 3D asset specifications to data-oriented C# structures and JavaScript rendering buffers.
+Integrating a Blender-to-glTF 2.0 asset pipeline into a .NET WebAssembly (WASM) Entity Component System (ECS) engine rendering via PixiJS requires mapping open 3D asset specifications to data-oriented C# structures and JavaScript rendering buffers.
 
 ## Two Pipelines & the glTF-as-Input Rule
 

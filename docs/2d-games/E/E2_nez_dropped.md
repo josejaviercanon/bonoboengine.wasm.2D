@@ -91,7 +91,7 @@ Every feature Nez provided has a replacement in the composed stack — most are 
 | Post-processors | **Custom** (~150 lines) | RenderTarget2D chain, your effects — [G2](../G/G2_rendering_and_graphics.md) |
 | Sprite rendering | Aseprite → PixiJS spritesheet (Vite) | Direct .aseprite import, better workflow — [G8](../G/G8_content_pipeline.md) |
 | Sprite atlas | PixiJS spritesheet or custom | Atlas packing, texture regions |
-| UI system | Blazor + Tailwind | Data-bound components, accessible, responsive — [G5](../G/G5_ui_framework.md) |
+| UI system | Tailwind CSS v4 | Data-bound components, accessible, responsive — [G5](../G/G5_ui_framework.md) |
 | Tweening | **Custom** (~100 lines) | Property tweens with easing — [G1](../G/G1_custom_code_recipes.md) |
 | Screen transitions | **Custom** (~100 lines) | Fade, slide, etc. — [G1](../G/G1_custom_code_recipes.md) |
 | Timers | **Custom** or Coroutine (Ellpeck) | Unity-style coroutines for sequential logic |
@@ -127,7 +127,7 @@ If you have an existing Nez project and want to migrate, here's the practical ap
 ### Phase 3: Systems
 
 1. **Physics** → Aether.Physics2D (sync positions between Arch components and Aether bodies)
-2. **UI** → Blazor + Tailwind (this is the biggest change — a web UI model)
+2. **UI** → Tailwind CSS v4 (this is the biggest change — a web UI model)
 3. **Input** → Apos.Input (straightforward swap)
 4. **AI** → BrainAI (API is similar to Nez's AI, since BrainAI is partially derived from it)
 

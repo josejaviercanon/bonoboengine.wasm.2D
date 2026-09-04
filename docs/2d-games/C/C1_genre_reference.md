@@ -61,7 +61,7 @@ Comprehensive map of 2D game genres, the core mechanics each requires, and which
 - Status effects with duration tracking
 - XP/leveling curves
 
-**Systems:** Custom scene manager (field vs battle scenes) → [G1](../G/G1_custom_code_recipes.md), custom turn manager, custom stat/buff system → [G10](../G/G10_custom_game_systems.md), Blazor + Tailwind UI (menus, equipment screens, shops) → [G5](../G/G5_ui_framework.md), custom tweens (battle animations) → [G1](../G/G1_custom_code_recipes.md)
+**Systems:** Custom scene manager (field vs battle scenes) → [G1](../G/G1_custom_code_recipes.md), custom turn manager, custom stat/buff system → [G10](../G/G10_custom_game_systems.md), Tailwind CSS UI (menus, equipment screens, shops) → [G5](../G/G5_ui_framework.md), custom tweens (battle animations) → [G1](../G/G1_custom_code_recipes.md)
 
 ---
 
@@ -102,7 +102,7 @@ Comprehensive map of 2D game genres, the core mechanics each requires, and which
 - Economy: currency earned from kills, spent on towers/upgrades
 - Wave editor / wave data format
 
-**Systems:** BrainAI pathfinding (A* on grid) → [G4](../G/G4_ai_systems.md), Arch ECS for towers + enemy waves (hundreds of creeps), custom wave scheduler → [G10](../G/G10_custom_game_systems.md), Blazor + Tailwind UI (tower selection/upgrade panels) → [G5](../G/G5_ui_framework.md)
+**Systems:** BrainAI pathfinding (A* on grid) → [G4](../G/G4_ai_systems.md), Arch ECS for towers + enemy waves (hundreds of creeps), custom wave scheduler → [G10](../G/G10_custom_game_systems.md), Tailwind CSS UI (tower selection/upgrade panels) → [G5](../G/G5_ui_framework.md)
 
 ---
 
@@ -117,7 +117,7 @@ Comprehensive map of 2D game genres, the core mechanics each requires, and which
 - Formation movement
 - Minimap with unit tracking
 
-**Systems:** **Arch ECS (essential)** for hundreds/thousands of units, custom SpatialHash → [G3](../G/G3_physics_and_collision.md), custom flow field pathfinding or BrainAI A* → [G4](../G/G4_ai_systems.md), PixiJS camera (zoom, pan), Blazor + Tailwind UI (resource bars, build menus) → [G5](../G/G5_ui_framework.md), custom fog of war shader → [G2](../G/G2_rendering_and_graphics.md)
+**Systems:** **Arch ECS (essential)** for hundreds/thousands of units, custom SpatialHash → [G3](../G/G3_physics_and_collision.md), custom flow field pathfinding or BrainAI A* → [G4](../G/G4_ai_systems.md), PixiJS camera (zoom, pan), Tailwind CSS UI (resource bars, build menus) → [G5](../G/G5_ui_framework.md), custom fog of war shader → [G2](../G/G2_rendering_and_graphics.md)
 
 ---
 
@@ -130,7 +130,7 @@ Comprehensive map of 2D game genres, the core mechanics each requires, and which
 - Score / completion tracking
 - Often turn-based or step-based rather than real-time
 
-**Systems:** Custom grid data structure, Command pattern → [G10](../G/G10_custom_game_systems.md), level serialization (JSON), Blazor + Tailwind UI (level select, score display) → [G5](../G/G5_ui_framework.md), custom tweens (piece movement animation) → [G1](../G/G1_custom_code_recipes.md)
+**Systems:** Custom grid data structure, Command pattern → [G10](../G/G10_custom_game_systems.md), level serialization (JSON), Tailwind CSS UI (level select, score display) → [G5](../G/G5_ui_framework.md), custom tweens (piece movement animation) → [G1](../G/G1_custom_code_recipes.md)
 
 ---
 
@@ -145,7 +145,7 @@ Comprehensive map of 2D game genres, the core mechanics each requires, and which
 - Procedural map with branching paths
 - Shop / card reward selection
 
-**Systems:** Custom card data as C# classes, custom deck/pile manager, Blazor + Tailwind UI or custom card rendering → [G5](../G/G5_ui_framework.md), custom tweens (card draw/play animations) → [G1](../G/G1_custom_code_recipes.md), custom buff system → [G10](../G/G10_custom_game_systems.md). **No existing NuGet library is mature enough — roll your own data model.**
+**Systems:** Custom card data as C# classes, custom deck/pile manager, Tailwind CSS UI or custom card rendering → [G5](../G/G5_ui_framework.md), custom tweens (card draw/play animations) → [G1](../G/G1_custom_code_recipes.md), custom buff system → [G10](../G/G10_custom_game_systems.md). **No existing NuGet library is mature enough — roll your own data model.**
 
 ---
 
@@ -160,7 +160,7 @@ Comprehensive map of 2D game genres, the core mechanics each requires, and which
 - Seasonal calendar affecting gameplay
 - Fishing/mining/foraging minigames
 
-**Systems:** Tiled maps (PixiJS loader) → [G8](../G/G8_content_pipeline.md), custom time/calendar manager → [G10](../G/G10_custom_game_systems.md), custom NPC scheduler, custom crafting recipe database → [G10](../G/G10_custom_game_systems.md), custom inventory grid → [G10](../G/G10_custom_game_systems.md), custom scene manager → [G1](../G/G1_custom_code_recipes.md), Blazor + Tailwind UI (inventory, crafting, dialogue, shop) → [G5](../G/G5_ui_framework.md)
+**Systems:** Tiled maps (PixiJS loader) → [G8](../G/G8_content_pipeline.md), custom time/calendar manager → [G10](../G/G10_custom_game_systems.md), custom NPC scheduler, custom crafting recipe database → [G10](../G/G10_custom_game_systems.md), custom inventory grid → [G10](../G/G10_custom_game_systems.md), custom scene manager → [G1](../G/G1_custom_code_recipes.md), Tailwind CSS UI (inventory, crafting, dialogue, shop) → [G5](../G/G5_ui_framework.md)
 
 ---
 
@@ -187,7 +187,7 @@ Comprehensive map of 2D game genres, the core mechanics each requires, and which
 - Music and SFX triggers tied to script
 - Save/load at any point in script
 
-**Systems:** Custom script parser (Ink, Yarn, or custom JSON format), the font rendering library for text rendering, custom tweens (fade transitions) → [G1](../G/G1_custom_code_recipes.md), Blazor + Tailwind UI (choice buttons) → [G5](../G/G5_ui_framework.md), custom save state serialization → [G10](../G/G10_custom_game_systems.md)
+**Systems:** Custom script parser (Ink, Yarn, or custom JSON format), the font rendering library for text rendering, custom tweens (fade transitions) → [G1](../G/G1_custom_code_recipes.md), Tailwind CSS UI (choice buttons) → [G5](../G/G5_ui_framework.md), custom save state serialization → [G10](../G/G10_custom_game_systems.md)
 
 ---
 
@@ -240,7 +240,7 @@ Comprehensive map of 2D game genres, the core mechanics each requires, and which
 - Upgrade trees with exponential costs
 - Minimal rendering, heavy on UI
 
-**Systems:** Custom big number library or `decimal`/`BigInteger`, **Blazor + Tailwind UI (primary interface)** → [G5](../G/G5_ui_framework.md), custom save system with timestamps for offline calc → [G10](../G/G10_custom_game_systems.md), minimal rendering needed
+**Systems:** Custom big number library or `decimal`/`BigInteger`, **Tailwind CSS UI (primary interface)** → [G5](../G/G5_ui_framework.md), custom save system with timestamps for offline calc → [G10](../G/G10_custom_game_systems.md), minimal rendering needed
 
 ---
 

@@ -7,7 +7,7 @@
 
 The single most important architectural decision: **do not depend on a monolith game framework**. When a monolith's sole maintainer leaves, everything dies at once (see [E2](./E2_nez_dropped.md) for the lesson that shaped this choice).
 
-The correct architecture is a **composed stack of focused, independently swappable pieces**: a pure C# simulation (Arch ECS, vendored as source you own) plus a web-aligned presentation layer (PixiJS + Blazor + Tailwind). If one piece dies, you swap that one piece — not your entire game's foundation.
+The correct architecture is a **composed stack of focused, independently swappable pieces**: a pure C# simulation (Arch ECS, vendored as source you own) plus a web-aligned presentation layer (PixiJS + Tailwind + TypeScript). If one piece dies, you swap that one piece — not your entire game's foundation.
 
 ---
 
@@ -62,7 +62,7 @@ graph TB
     end
 
     subgraph Presentation["Game.UI (Presentation — pure mirror)"]
-        BLZ["Blazor + Tailwind<br/><small>HUD, menus</small>"]
+        TW["Tailwind CSS v4<br/><small>HUD, menus</small>"]
         PXJ["PixiJS v8<br/><small>2D canvas, sprites, filters</small>"]
         VITE["Vite + TS<br/><small>asset bundle to wwwroot/dist</small>"]
     end
@@ -74,8 +74,8 @@ graph TB
     end
 
     GL --> Custom
-    GL -->|"delta events"| BLZ
-    BLZ -->|"IJSRuntime push"| PXJ
+    GL -->|"delta events"| TW
+    TW -->|"Float32Array shared memory"| PXJ
     VITE --> PXJ
     Custom --> ARCH
     GL --> ARCH
@@ -86,7 +86,7 @@ graph TB
     style Game fill:#7c4dff,color:#fff,stroke:none
     style Presentation fill:#ffab40,color:#000,stroke:none
     style ARCH fill:#448aff,color:#fff,stroke:none
-    style PXJ fill:#69f0ae,color:#000,stroke:none
+    style TW fill:#69f0ae,color:#000,stroke:none
 ```
 
 ---
@@ -99,13 +99,13 @@ Each library handles one concern and is independently swappable:
 |---------|----------|-------------------|
 | Entity management | Arch ECS (vendored source) | Other C# ECS libs (DefaultECS, LeoECS) |
 | 2D rendering | PixiJS v8 | Canvas2D fallback (slower) |
-| UI | Blazor + Tailwind CSS v4 | Raw HTML/CSS |
-| Input | Blazor/DOM events → commands | Direct DOM listeners |
+| UI | Tailwind CSS v4 | Raw HTML/CSS |
+| Input | TypeScript DOM events → commands | Direct DOM listeners |
 | Fonts | PixiJS Text + web fonts | CSS fonts |
 | Sprites | Aseprite → PixiJS spritesheet (Vite) | Manual spritesheet parsing |
 | Physics | Custom C# (no lib in stack) | Vendor a C# physics lib later |
 | AI | BrainAI (optional, vendor as source) | Custom FSM/BT (~300 lines each) |
-| Debug | Browser DevTools / Blazor | Console logging |
+| Debug | Browser DevTools | Console logging |
 | Coroutines | Ellpeck/Coroutine (optional) | Custom IEnumerator wrapper (~60 lines) |
 | Serialization | System.Text.Json (built-in .NET) | Newtonsoft.Json (compatibility) |
 
@@ -140,7 +140,7 @@ Every line is code you own, understand, and can debug. Implementation details an
 2. **One entity model** — Arch ECS for everything, no bridge code
 3. **Web-aligned stack** — `npm` for the frontend, `dotnet` for the simulation; `dotnet restore` + `npm ci` get you running
 4. **Modern .NET compatibility** — nothing blocks .NET 10
-5. **Better UI** — Blazor + Tailwind give accessible, responsive HTML/CSS HUD and menus
+5. **Better UI** — Tailwind CSS + TypeScript give accessible, responsive HTML/CSS HUD and menus
 6. **Smaller attack surface** — ~1,000 lines of custom glue vs. ~50,000+ lines of a monolith framework
 7. **Faster builds** — no compiling a massive framework submodule
 
@@ -148,14 +148,12 @@ Every line is code you own, understand, and can debug. Implementation details an
 
 ## Cross-Platform Validation
 
-This architecture targets the web and mobile/desktop via shared hosts:
+This architecture targets the web via a single host:
 
 | Platform | Host | Status |
 |----------|------|--------|
-| Web | `src/Game.Web` — Blazor Web App (static SSR) | Primary dev target |
-| Android | `src/Game.Maui` — MAUI Blazor Hybrid | Default MAUI TFM |
-| iOS / MacCatalyst / Windows | `src/Game.Maui` (conditional TFMs) | Requires MAUI workloads |
+| Web | `src/Game.Wasm` — .NET WASM host (non-Blazor) | Primary dev target |
 
-The simulation (`Game.Engine`, the vast majority of code) requires **zero platform-specific changes**. Hosts are thin bootstrappers that load the same shared `Game.UI` Razor Class Library. ECS systems, simulation, and all game logic are shared across every host.
+The simulation (`Game.Engine`, the vast majority of code) requires **zero platform-specific changes**. The host is a thin bootstrapper that loads the same shared `Game.UI` library. ECS systems, simulation, and all game logic are shared. Zero-copy shared memory bridge (pinned `GCHandle` + `Float32Array` over WASM heap via `[JSImport]` notifyRender) pushes transform data to PixiJS without per-entity interop calls.
 
 See [R3 Project Structure](../R/R3_project_structure.md) for the actual repo layout.

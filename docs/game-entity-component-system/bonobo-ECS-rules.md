@@ -16,30 +16,30 @@ Engine-specific rules for the Bonobo engine: an authoritative C# simulation back
 - **Source generators:** `src/Arch.Generators/` — a `netstandard2.0` Roslyn analyzer pack that links Arch's `Arch.Systems.SourceGenerator` + `Arch.AOT.SourceGenerator` + `Arch.EventBus` sources. Referenced from `Game.Engine` as an analyzer (`OutputItemType="Analyzer"`).
 - **Presentation:** PixiJS v8 — rendered client-side; bundled by Vite + TypeScript in `src/Game.UI/Frontend/`, output to `src/Game.UI/wwwroot/dist`.
 - **Physics (target, vendored-not-referenced):** `src/Box2D.NET` (authoritative gameplay physics, runs in the C# ECS loop, zero-interop raycasts/AABB) and `src/BrainAI` (pathfinding/AI). Neither is referenced by `Game.Engine.csproj` yet. box2d3-wasm (Box2D v3 WASM) is optional JS-side presentation physics only — see ADR-002/ADR-005.
-- **UI:** Blazor components + Tailwind CSS v4 (in `src/Game.UI`, the shared Razor Class Library).
-- **Hosts:** `src/Game.Web` (Blazor Web App, static SSR) and `src/Game.Maui` (.NET MAUI Blazor Hybrid, Android default; iOS/MacCatalyst/Windows conditional).
+- **UI:** Tailwind CSS v4 (in `src/Game.UI/Frontend/`).
+- **Hosts:** `src/Game.Wasm` (non-Blazor browser-wasm host, `Microsoft.NET.Sdk.WebAssembly`).
 - **Serialization:** System.Text.Json with source generators (AOT-friendly, allocation-free). Planned.
 - **NOT in this stack:** native game-framework runtimes and their UI/input/physics/content-pipeline libraries (Gum, Apos.Input, Aether.Physics2D, PixiJS + custom C# utilities, the Aseprite spritesheet importer, FontStashSharp, MGCB-style content pipelines, FMOD). The `docs/2d-games/` concept toolkit is now aligned to this stack (Bonobo-aligned architecture/reference + engine-agnostic guides); treat any remaining native-framework specifics there as illustrative, not prescriptive.
 
 ### Project Structure (actual)
 
 ```
-bonoboengine.blazorwasm/
+bonoboengine.wasm.2D/
 ├── bonoboWebGame.slnx          # .NET 10 XML solution
 ├── src/
 │   ├── Game.Engine/            # Pure C# class lib — authoritative simulation (Arch ECS lives here)
 │   │   ├── Game.Engine.csproj  # refs Arch.csproj + Arch.Generators (analyzer)
 │   │   └── GameSimulation.cs   # Sim entry: World, systems, ProcessCommand, events out
-│   ├── Game.UI/                # Shared Razor Class Library — refs Game.Engine
+│   ├── Game.UI/                # Shared class lib — owns PixiJS/TypeScript frontend
 │   │   ├── Frontend/           # PixiJS/TypeScript source (Vite entry: game.ts)
 │   │   ├── wwwroot/dist/       # Generated JS/CSS — DO NOT hand-edit
 │   │   └── Game.UI.csproj
-│   ├── Game.Web/               # Blazor Web App host (static SSR)
-│   ├── Game.Maui/              # .NET MAUI Blazor Hybrid host
+│   ├── Game.Wasm/              # Browser-wasm host (non-Blazor, Microsoft.NET.Sdk.WebAssembly)
+│   ├── Game.Examples/          # Example catalog (IExampleSims seam)
 │   ├── Arch/                   # Vendored Arch ECS source (net10.0, T4 templates)
 │   │   └── Arch.csproj
-│   └── Arch.Generators/        # Roslyn analyzer pack (links Arch source generators)
-│       └── Arch.Generators.csproj
+│   ├── Arch.Generators/        # Roslyn analyzer pack (links Arch source generators)
+│   │   └── Arch.Generators.csproj
 └── docs/
     ├── index.md                       # Architecture source of truth
     ├── game-entity-component-system/  # ← Bonobo-adapted ECS docs (this file)
@@ -111,7 +111,7 @@ public struct Health
 
 ### Systems: Logic Lives Here
 
-Systems process components. Single responsibility; query for exactly the components they need. Systems must NOT touch UI, `IJSRuntime`, or anything platform-specific — they mutate simulation state only. State leaves the engine exclusively via events.
+Systems process components. Single responsibility; query for exactly the components they need. Systems must NOT touch UI, platform APIs, or anything platform-specific — they mutate simulation state only. State leaves the engine exclusively via events.
 
 ```csharp
 // System that moves entities with Position and Velocity
@@ -197,7 +197,7 @@ foreach (var e in toDestroy) World.Destroy(e);
 - Prefer `ref` returns and `in` parameters for performance-sensitive code paths.
 - Use `Span<T>` and `stackalloc` for temporary allocations in hot paths.
 - Avoid LINQ in per-frame code (allocates on the heap).
-- Avoid `async/await` in the simulation tick — the engine must be deterministic and synchronous. Use command buffers / manual state machines. Async is confined to the Blazor bridge layer.
+- Avoid `async/await` in the simulation tick — the engine must be deterministic and synchronous. Use command buffers / manual state machines.
 
 ### String and Logging
 
@@ -221,7 +221,7 @@ cd ../..
 dotnet build bonoboWebGame.slnx
 
 # 3. Run the web host (hot reload)
-dotnet watch --project src/Game.Web
+dotnet watch --project src/Game.Wasm
 
 # Type-check only (note: tsc --noEmit currently fails on vite.config.ts Node types)
 cd src/Game.UI
@@ -249,18 +249,18 @@ npx tsc --noEmit
 |---|---|---|
 | `GameSimulation.cs` | World lifecycle, system registration, tick pump, `ProcessCommand`, event emission | Add rendering or UI logic |
 | `Components/` | Data struct definitions only | Add methods, logic, or UI types |
-| `Systems/` | All game logic (simulation) | Touch `IJSRuntime`, Blazor, or platform APIs |
+| `Systems/` | All game logic (simulation) | Touch platform APIs |
 | `Events/` | Delta event types emitted to the presentation layer | Contain game logic |
 | `Commands/` | Input/action command types consumed by `ProcessCommand` | Contain rendering |
-| `Game.UI/` (Razor + Frontend) | Presentation: Blazor components, PixiJS, Tailwind | Contain authoritative simulation logic |
-| `Game.Web/` / `Game.Maui/` | Hosts: bootstrap, wiring, static SSR / MAUI shell | Contain game or ECS logic |
+| `Game.UI/` (Frontend) | Presentation: PixiJS, Tailwind, CSS overlay | Contain authoritative simulation logic |
+| `Game.Wasm/` | Host: bootstrap, wasm interop bridge, dotnet.js boot | Contain game or ECS logic |
 
 ### Simulation Lifecycle (NOT a native game-framework Update/Draw loop)
 
 The Bonobo engine has **no** `Initialize/LoadContent/Update/Draw` lifecycle. It is a deterministic tick pump separated from rendering:
 
 ```
- Input (DOM/Blazor)
+ Input (DOM)
         │
         ▼
  ProcessCommand(cmd)      ← only entry point for input; validates & queues
@@ -275,7 +275,7 @@ The Bonobo engine has **no** `Initialize/LoadContent/Update/Draw` lifecycle. It 
  Delta Events Out         ← e.g. EntityMovedEvent(id, x, y), SpriteChangedEvent(...)
         │
         ▼
- Blazor Bridge (IJSRuntime) ← push-based, flat payload, NEVER poll
+ Wasm Interop ([JSExport] events) ← push-based, flat payload, NEVER poll
         │
         ▼
  PixiJS renders the delta   ← presentation layer is a pure mirror
@@ -283,7 +283,7 @@ The Bonobo engine has **no** `Initialize/LoadContent/Update/Draw` lifecycle. It 
 
 **Rules:**
 - Commands enter the engine **only** via `ProcessCommand`. Never poke entity state directly from UI.
-- State leaves the engine **only** via events. Systems never call `IJSRuntime` or JS interop.
+- State leaves the engine **only** via events. Systems never call platform APIs directly.
 - Never poll C# from JS per-frame. Use push-based delta events (the "Performance Gold Rule" from `docs/index.md`).
 - The simulation tick is synchronous and deterministic. No `async/await` inside systems.
 - Rendering is entirely client-side (PixiJS); the C# side never issues draw calls.
@@ -364,5 +364,5 @@ These Bonobo + Arch rules build on top of the engine-agnostic rules in `docs/gam
 
 When core rules and Bonobo rules conflict, Bonobo rules take precedence for this repository.
 
-> **Generic gamedev reference:** `docs/2d-games/` holds the "Universal 2D Engine Toolkit" — architecture/reference docs aligned to the Bonobo stack (Arch ECS + PixiJS + Blazor + Tailwind + System.Text.Json) plus engine-agnostic concept guides. Use it for game loops, pooling, pathfinding, AI patterns, and the like; native game-framework specifics do **not** apply here.
+> **Generic gamedev reference:** `docs/2d-games/` holds the "Universal 2D Engine Toolkit" — architecture/reference docs aligned to the Bonobo stack (Arch ECS + PixiJS + Tailwind + System.Text.Json) plus engine-agnostic concept guides. Use it for game loops, pooling, pathfinding, AI patterns, and the like; native game-framework specifics do **not** apply here.
 

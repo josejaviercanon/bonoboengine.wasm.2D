@@ -38,11 +38,11 @@ Quick lookup: what provides what.
 | Utility AI | BrainAI (optional) | Score-based action selection | [G4](../guides/G4_ai_systems.md) |
 | Pathfinding (A*, BFS, Dijkstra) | BrainAI or Roy-T.AStar (optional) | Grid or custom graph | [G4](../guides/G4_ai_systems.md) |
 | Influence Maps | BrainAI (optional) | Spatial scoring | [G4](../guides/G4_ai_systems.md) |
-| **UI (Blazor + Tailwind)** | | | |
-| UI framework | Blazor components + Tailwind CSS v4 | Data-bound HUD, menus, inventories | [G5](../guides/G5_ui_framework.md) |
+| **UI (Tailwind + HTML/CSS)** | | | |
+| UI framework | Tailwind CSS v4 + TypeScript DOM | HUD, menus, inventories | [G5](../guides/G5_ui_framework.md) |
 | Runtime fonts | PixiJS Text + web fonts | .ttf/.otf via CSS / PixiJS | |
 | **Input** | | | |
-| Input handling | Blazor/DOM events → commands | Keyboard, mouse, gamepad, touch | [G7](../guides/G7_input_handling.md) |
+| Input handling | TypeScript DOM events + [JSExport] host → commands | Keyboard, mouse, gamepad, touch | [G7](../guides/G7_input_handling.md) |
 | **Audio (client-side)** | | | |
 | Audio (basic) | Web Audio (PixiJS sound / browser) | Sound effects, music | [G6](../guides/G6_audio.md) |
 | Audio (advanced) | Web Audio API (custom) | DSP, buses, beat sync, spatial | [G6](../guides/G6_audio.md) |
@@ -50,11 +50,11 @@ Quick lookup: what provides what.
 | Tweening | Custom (~100 lines) | Any numeric property, easing curves | [G1](../guides/G1_custom_code_recipes.md) |
 | Coroutines | Ellpeck/Coroutine (optional) | Unity-style yield | |
 | Object pooling | Custom (~30 lines) | Generic Pool\<T> | [G1](../guides/G1_custom_code_recipes.md) |
-| Debug console + overlays | Browser DevTools / Blazor | Entity inspectors, perf graphs | |
+| Debug console + overlays | Browser DevTools / PixiJS | Entity inspectors, perf graphs | |
 | Serialization | System.Text.Json (built-in .NET) | JSON, AOT-compatible with source gen | |
 | ECS serialization | Arch.Persistence (vendored) | Save/load entire ECS worlds | |
 | Networking (future) | ASP.NET Core SignalR / WebSockets | Authoritative server, same engine | [G9](../guides/G9_networking.md) |
 | Procedural generation | Custom C# | BSP, cellular automata, WFC, noise | [G10](../guides/G10_custom_game_systems.md) |
 | Asset pipeline | Vite + PixiJS Assets | Bundles sprites/audio/data → `wwwroot/dist` | [G8](../guides/G8_content_pipeline.md) |
 | Tilemap loading | Tiled .tmx → PixiJS loader (custom/TSJ) | Ortho + iso | [G8](../guides/G8_content_pipeline.md) |
-| Cross-platform | .NET 10 (Blazor Web + MAUI Hybrid) | Web, Android, iOS, MacCatalyst, Windows | |
+| Cross-platform | .NET 10 (WASM browser host) | Web | |

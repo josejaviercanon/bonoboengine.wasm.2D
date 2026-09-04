@@ -22,7 +22,7 @@ The highest-value AI tasks for Arch ECS:
 - **Unit test generation** — ECS systems' pure-function nature makes them highly testable
 - **Documentation generation** — start a comment and receive comprehensive XML docs
 
-The critical caveat: **this stack (Arch ECS + PixiJS + Blazor) has a smaller community than Unity or Unreal**, meaning less training data for AI models. Expect more errors with stack-specific APIs. Paste Arch ECS's README and key interface definitions into your LLM context — this single step dramatically improves output quality for niche frameworks.
+The critical caveat: **this stack (Arch ECS + PixiJS + Tailwind CSS + TypeScript) has a smaller community than Unity or Unreal**, meaning less training data for AI models. Expect more errors with stack-specific APIs. Paste Arch ECS's README and key interface definitions into your LLM context — this single step dramatically improves output quality for niche frameworks.
 
 ---
 
@@ -55,10 +55,10 @@ Create a CONTEXT.md file in your project root. Feed it to AI with every prompt:
 
 ```markdown
 # Project: FireStarter
-## Architecture: Arch ECS + PixiJS + Blazor + Composed Libraries
+## Architecture: Arch ECS + PixiJS + Tailwind CSS + TypeScript + Composed Libraries
 ## Patterns: Service Locator for ambient services, DI for game logic
 ## Arch owns: ALL entities (player, NPCs, enemies, particles, simulation)
-## Key Libraries: Arch ECS (vendored), PixiJS v8, Blazor + Tailwind, System.Text.Json
+## Key Libraries: Arch ECS (vendored), PixiJS v8, Tailwind CSS v4, TypeScript, System.Text.Json
 ## Custom Code: Scene manager, render layers, SpatialHash, tweens
 ## Coding conventions: C# 12, nullable enabled, readonly structs for data
 ```

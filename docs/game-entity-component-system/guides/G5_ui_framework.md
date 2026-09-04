@@ -262,7 +262,7 @@ For touch: Gum handles touch input as mouse input on mobile platforms — no spe
 Before writing any Gum code, consider prototyping your UI layouts in [Google Stitch](https://stitch.withgoogle.com/) — a free AI-native design canvas that generates high-fidelity UI mockups from natural language prompts.
 
 **Why prototype first:**
-- Changing a text prompt is faster than refactoring Blazor/Tailwind layout code
+- Changing a text prompt is faster than refactoring Tailwind CSS layout code
 - See your entire UI system (menus, HUD, inventory, settings) on an infinite canvas
 - Extract exact colors, spacing, and sizing values from the generated HTML/CSS
 - Test screen flows (Main Menu → Settings → Gameplay → Pause) as interactive prototypes

@@ -21,7 +21,7 @@ The critical boundary: **AI handles the "how," humans must own the "why."** AI e
 
 **The numbers:** A CodeRabbit analysis (December 2025) found AI-co-authored pull requests contained **1.7x more issues** than human-only code, including 3x more readability problems and 2.74x more security vulnerabilities. Treat AI as a talented but over-eager junior developer who needs guardrails. Write lightweight specifications before prompting, invest in test coverage, and trace through every line of generated code.
 
-**Stack-specific caveat:** This stack (Arch ECS + PixiJS + Blazor) has a smaller community than Unity/Unreal, meaning less training data. Expect more errors with stack-specific APIs. **Paste Arch ECS's README and key interface definitions into your LLM context** — this single step dramatically improves output quality for niche frameworks. See → [E5 CONTEXT.md](./E5_ai_workflow.md#contextmd)
+**Stack-specific caveat:** This stack (Arch ECS + PixiJS + Tailwind CSS + TypeScript) has a smaller community than Unity/Unreal, meaning less training data. Expect more errors with stack-specific APIs. **Paste Arch ECS's README and key interface definitions into your LLM context** — this single step dramatically improves output quality for niche frameworks. See → [E5 CONTEXT.md](./E5_ai_workflow.md#contextmd)
 
 ---
 

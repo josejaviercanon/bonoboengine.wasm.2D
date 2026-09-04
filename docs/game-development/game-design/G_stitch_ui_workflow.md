@@ -128,7 +128,7 @@ With Stitch, steps 1-2 collapse into seconds:
 
 ### What Stitch Does NOT Do
 
-- Generate actual game engine UI code (no GDScript Control nodes, no the engine Blazor/Tailwind layouts)
+- Generate actual game engine UI code (no GDScript Control nodes, no Tailwind CSS layouts)
 - Render at pixel-art resolutions (it generates web-scale UI)
 - Handle real-time gameplay interactions (hover states, drag & drop, animation)
 - Replace your game's rendering pipeline
@@ -260,7 +260,7 @@ texture, copper/bronze accents, handwritten-style font for recipe names.
 
 **Too prescriptive about implementation:**
 ```
-❌ "Create a the engine Blazor/Tailwind layout with GraphicalUiElement containers"
+❌ "Create a Tailwind CSS layout with GraphicalUiElement containers"
 ❌ "Build a Godot Control node tree with VBoxContainer"
 ```
 Stitch generates web UI — describe what it looks like, not how it's coded.
