@@ -1,5 +1,6 @@
 @group(0) @binding(0) var<uniform> uColors: array<vec4<f32>, 4>;
 @group(0) @binding(1) var<uniform> uFogParams: vec4<f32>;
+@group(0) @binding(2) var<uniform> uViewSize: vec2<f32>;
 
 struct InstanceInput {
     @location(0) aPosition: vec2<f32>,
@@ -9,8 +10,7 @@ struct InstanceInput {
     @location(4) aColorIndex: f32,
     @location(5) aY1: f32,
     @location(6) aY2: f32,
-    @location(7) aCurve: f32,
-    @location(8) aClipY: f32,
+    @location(7) aClipY: f32,
 }
 
 struct VertexOutput {
@@ -34,15 +34,16 @@ fn vs_main(instance: InstanceInput) -> VertexOutput {
     let worldX = offsetX + pos.x * scale;
     let worldY = y;
 
-    let clipped = worldY < clipY ? 1.0 : 0.0;
-
     let fogDensity = uFogParams.x;
     let drawDistance = uFogParams.y;
     let depth = instance.aSegmentId / drawDistance;
     let fog = 1.0 - exp(-fogDensity * depth * depth);
 
     var output: VertexOutput;
-    output.position = vec4<f32>(worldX, worldY, 0.0, 1.0);
+    // WebGPU NDC is y-down: worldY pixels (y down) map directly, worldX pixel offset from center
+    let ndcX = worldX * 2.0 / uViewSize.x;
+    let ndcY = worldY * 2.0 / uViewSize.y - 1.0;
+    output.position = vec4<f32>(ndcX, ndcY, 0.0, 1.0);
     output.vColor = uColors[u32(instance.aColorIndex)];
     output.vFog = fog;
     output.vClipY = clipY;

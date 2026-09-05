@@ -1,6 +1,7 @@
 #version 300 es
 uniform vec4 uColors[4];
 uniform vec4 uFogParams;
+uniform vec2 uViewSize;
 
 in vec2 aPosition;
 in float aSegmentId;
@@ -9,7 +10,6 @@ in float aScale;
 in float aColorIndex;
 in float aY1;
 in float aY2;
-in float aCurve;
 in float aClipY;
 
 out vec4 vColor;
@@ -31,5 +31,8 @@ void main() {
     vFog = fog;
     vClipY = aClipY;
 
-    gl_Position = vec4(worldX, worldY, 0.0, 1.0);
+    // worldX/worldY are logical screen pixels (y down) — convert to GL NDC (y up)
+    float ndcX = worldX * 2.0 / uViewSize.x;
+    float ndcY = 1.0 - 2.0 * worldY / uViewSize.y;
+    gl_Position = vec4(ndcX, ndcY, 0.0, 1.0);
 }

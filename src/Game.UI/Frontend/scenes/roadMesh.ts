@@ -35,14 +35,11 @@ const COLORS: Record<number, { road: number; grass: number; rumble: number; lane
 };
 
 const SEGMENT_LIGHT = 0;
-const SEGMENT_DARK = 1;
 
 export class RoadMesh {
-    private mesh: Mesh;
+    private mesh: Mesh<Geometry, Shader>;
     private geometry: Geometry;
     private uniforms!: UniformGroup;
-    private uniforms!: UniformGroup;
-    private maxSegments: number;
     private quadsPerSegment: number;
     private totalInstances: number;
     
@@ -53,15 +50,14 @@ export class RoadMesh {
     private instanceColorIndex: Float32Array;
     private instanceY1: Float32Array;
     private instanceY2: Float32Array;
-    private instanceCurve: Float32Array;
     private instanceClipY: Float32Array;
     
     // Uniform buffers
     private colorUniform: Float32Array; // 4 colors * 4 components = 16 floats
     private fogUniform: Float32Array;   // fogDensity, drawDistance, cameraDepth, cameraY
+    private viewUniform: Float32Array;  // logical viewport width, height
     
     constructor(app: any, maxSegments: number = 400) {
-        this.maxSegments = maxSegments;
         this.quadsPerSegment = 4; // grass, rumble-left, rumble-right, road
         this.totalInstances = maxSegments * this.quadsPerSegment;
         
@@ -72,15 +68,15 @@ export class RoadMesh {
         this.instanceColorIndex = new Float32Array(this.totalInstances);
         this.instanceY1 = new Float32Array(this.totalInstances);
         this.instanceY2 = new Float32Array(this.totalInstances);
-        this.instanceCurve = new Float32Array(this.totalInstances);
         this.instanceClipY = new Float32Array(this.totalInstances);
         
         // Initialize uniform buffers
         this.colorUniform = new Float32Array(16); // 4 colors * 4 components
         this.fogUniform = new Float32Array(4);
+        this.viewUniform = new Float32Array(2);
         
         // Create geometry
-        this.geometry = this.createGeometry(app);
+        this.geometry = this.createGeometry();
         
         // Create shader
         const shader = this.createShader(app);
@@ -92,21 +88,20 @@ export class RoadMesh {
         });
     }
     
-    private createGeometry(app: any): Geometry {
+    private createGeometry(): Geometry {
         const vertices = new Float32Array([-1, -1, 1, -1, 1, 1, -1, 1]);
         const indices = new Uint16Array([0, 1, 2, 2, 3, 0]);
 
         const geometry = new Geometry();
 
         geometry.addAttribute('aPosition', { buffer: vertices, format: 'float32x2' });
-        geometry.addAttribute('aSegmentId', { buffer: this.instanceSegmentId, format: 'float32', divisor: 1 });
-        geometry.addAttribute('aOffsetX', { buffer: this.instanceOffsetX, format: 'float32', divisor: 1 });
-        geometry.addAttribute('aScale', { buffer: this.instanceScale, format: 'float32', divisor: 1 });
-        geometry.addAttribute('aColorIndex', { buffer: this.instanceColorIndex, format: 'float32', divisor: 1 });
-        geometry.addAttribute('aY1', { buffer: this.instanceY1, format: 'float32', divisor: 1 });
-        geometry.addAttribute('aY2', { buffer: this.instanceY2, format: 'float32', divisor: 1 });
-        geometry.addAttribute('aCurve', { buffer: this.instanceCurve, format: 'float32', divisor: 1 });
-        geometry.addAttribute('aClipY', { buffer: this.instanceClipY, format: 'float32', divisor: 1 });
+        geometry.addAttribute('aSegmentId', { buffer: this.instanceSegmentId, format: 'float32', instance: true, divisor: 1 });
+        geometry.addAttribute('aOffsetX', { buffer: this.instanceOffsetX, format: 'float32', instance: true, divisor: 1 });
+        geometry.addAttribute('aScale', { buffer: this.instanceScale, format: 'float32', instance: true, divisor: 1 });
+        geometry.addAttribute('aColorIndex', { buffer: this.instanceColorIndex, format: 'float32', instance: true, divisor: 1 });
+        geometry.addAttribute('aY1', { buffer: this.instanceY1, format: 'float32', instance: true, divisor: 1 });
+        geometry.addAttribute('aY2', { buffer: this.instanceY2, format: 'float32', instance: true, divisor: 1 });
+        geometry.addAttribute('aClipY', { buffer: this.instanceClipY, format: 'float32', instance: true, divisor: 1 });
 
         geometry.addIndex(indices);
         geometry.instanceCount = this.totalInstances;
@@ -120,6 +115,7 @@ export class RoadMesh {
         const uniforms = new UniformGroup({
             uColors: { value: this.colorUniform, type: 'vec4<f32>', size: 4 },
             uFogParams: { value: this.fogUniform, type: 'vec4<f32>' },
+            uViewSize: { value: this.viewUniform, type: 'vec2<f32>' },
         });
         this.uniforms = uniforms;
         
@@ -127,7 +123,7 @@ export class RoadMesh {
             return Shader.from({
                 gpu: {
                     vertex: { source: roadVertWGSL, entryPoint: 'vs_main' },
-                    fragment: { source: roadVertWGSL, entryPoint: 'fs_main' },
+                    fragment: { source: roadFragWGSL, entryPoint: 'fs_main' },
                 },
                 resources: {
                     uniforms,
@@ -157,7 +153,7 @@ export class RoadMesh {
     
     update(params: RoadViewParams): void {
         const { 
-            playerX, playerZ, cameraY, cameraDepth, 
+            playerZ, cameraY, cameraDepth, 
             width, height, roadWidth, drawDistance, 
             fogDensity, segments, normalizedBaseIndex, x, dx 
         } = params;
@@ -167,11 +163,13 @@ export class RoadMesh {
         let currentDx = dx;
         let maxY = height;
         
-        // Update fog uniform
+        // Update fog + view uniforms
         this.fogUniform[0] = fogDensity;
         this.fogUniform[1] = drawDistance;
         this.fogUniform[2] = cameraDepth;
         this.fogUniform[3] = cameraY;
+        this.viewUniform[0] = width;
+        this.viewUniform[1] = height;
         
         // Update color uniform - use light palette as default
         const lightPalette = COLORS[SEGMENT_LIGHT];
@@ -207,10 +205,7 @@ export class RoadMesh {
             
             const scale1 = cameraDepth / cameraRelativeZ1;
             const scale2 = cameraDepth / cameraRelativeZ2;
-            
-            const p1x = width / 2 + scale1 * (playerX - currentX) * width / 2;
-            const p2x = width / 2 + scale2 * (playerX - currentX - currentDx) * width / 2;
-            
+
             const p1y = height / 2 - scale1 * (segment.p1WorldY - cameraY) * height / 2;
             const p2y = height / 2 - scale2 * (segment.p2WorldY - cameraY) * height / 2;
             
@@ -226,54 +221,50 @@ export class RoadMesh {
             const avgWidth = (w1 + w2) / 2;
             const avgRumbleWidth = (rumbleWidth1 + rumbleWidth2) / 2;
             
-            // Instance 0: Grass (full width)
+            // Instance 0: Grass (full screen width — quad spans offsetX ± scale)
             if (p1y - p2y > 0 && instanceIdx < this.totalInstances) {
-                this.instanceSegmentId[instanceIdx] = segment.index;
+                this.instanceSegmentId[instanceIdx] = n; // relative draw index (0=nearest); fog depth = n/drawDistance
                 this.instanceOffsetX[instanceIdx] = 0;
-                this.instanceScale[instanceIdx] = avgWidth;
+                this.instanceScale[instanceIdx] = width;
                 this.instanceColorIndex[instanceIdx] = 0; // grass
                 this.instanceY1[instanceIdx] = p2y;
                 this.instanceY2[instanceIdx] = p1y;
-                this.instanceCurve[instanceIdx] = segment.curve;
                 this.instanceClipY[instanceIdx] = maxY;
                 instanceIdx++;
             }
             
             // Instance 1: Left rumble
             if (instanceIdx < this.totalInstances) {
-                this.instanceSegmentId[instanceIdx] = segment.index;
+                this.instanceSegmentId[instanceIdx] = n; // relative draw index (0=nearest); fog depth = n/drawDistance
                 this.instanceOffsetX[instanceIdx] = -avgWidth - avgRumbleWidth;
                 this.instanceScale[instanceIdx] = avgRumbleWidth;
                 this.instanceColorIndex[instanceIdx] = 1; // rumble
                 this.instanceY1[instanceIdx] = p2y;
                 this.instanceY2[instanceIdx] = p1y;
-                this.instanceCurve[instanceIdx] = segment.curve;
                 this.instanceClipY[instanceIdx] = maxY;
                 instanceIdx++;
             }
             
             // Instance 2: Right rumble
             if (instanceIdx < this.totalInstances) {
-                this.instanceSegmentId[instanceIdx] = segment.index;
+                this.instanceSegmentId[instanceIdx] = n; // relative draw index (0=nearest); fog depth = n/drawDistance
                 this.instanceOffsetX[instanceIdx] = avgWidth + avgRumbleWidth;
                 this.instanceScale[instanceIdx] = avgRumbleWidth;
                 this.instanceColorIndex[instanceIdx] = 1; // rumble
                 this.instanceY1[instanceIdx] = p2y;
                 this.instanceY2[instanceIdx] = p1y;
-                this.instanceCurve[instanceIdx] = segment.curve;
                 this.instanceClipY[instanceIdx] = maxY;
                 instanceIdx++;
             }
             
             // Instance 3: Road surface
             if (instanceIdx < this.totalInstances) {
-                this.instanceSegmentId[instanceIdx] = segment.index;
+                this.instanceSegmentId[instanceIdx] = n; // relative draw index (0=nearest); fog depth = n/drawDistance
                 this.instanceOffsetX[instanceIdx] = 0;
                 this.instanceScale[instanceIdx] = avgWidth;
                 this.instanceColorIndex[instanceIdx] = 2; // road
                 this.instanceY1[instanceIdx] = p2y;
                 this.instanceY2[instanceIdx] = p1y;
-                this.instanceCurve[instanceIdx] = segment.curve;
                 this.instanceClipY[instanceIdx] = maxY;
                 instanceIdx++;
             }
@@ -294,13 +285,12 @@ export class RoadMesh {
         this.geometry.getBuffer('aColorIndex').update();
         this.geometry.getBuffer('aY1').update();
         this.geometry.getBuffer('aY2').update();
-        this.geometry.getBuffer('aCurve').update();
         this.geometry.getBuffer('aClipY').update();
         
         this.geometry.instanceCount = instanceIdx;
     }
     
-    getMesh(): Mesh {
+    getMesh(): Mesh<Geometry, Shader> {
         return this.mesh;
     }
     

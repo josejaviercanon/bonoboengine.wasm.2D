@@ -6,7 +6,6 @@ import { SnapshotBuffer, lerp, lerpWrapped } from './interpolation';
 import { connectSignalStream, getLocalBufferProvider, type SignalStream } from './signalSource';
 import { BUFFER_HEADER_LENGTH, floatBool, readSignalHeader, type EntityDecoder } from './bufferLayout';
 import { RoadMesh } from './roadMesh';
-import { FogOverlay } from './fogOverlay';
 
 const FAST_LAP_STORAGE_KEY = 'racer-fast-lap';
 const DEFAULT_FAST_LAP_SECONDS = 180;
@@ -124,11 +123,6 @@ interface ProjectedSegment {
     fog: number;
     clip: number;
 }
-
-const SEGMENT_LIGHT = 0;
-const SEGMENT_DARK = 1;
-const SEGMENT_START = 2;
-const SEGMENT_FINISH = 3;
 
 // Values match RacerSpriteKind in Game.Engine.ECS.Racer.RacerComponents.cs.
 const KIND = {
@@ -486,11 +480,7 @@ export const racerScene: SceneBuilder = async (app, params, ctx) => {
     const carContainer = new Container();
     const playerContainer = new Container();
     world.addChild(sceneryContainer, roadMesh.getMesh(), carContainer, playerContainer);
-    
-    // Fog overlay (single quad shader)
-    const fogOverlay = new FogOverlay(app);
-    world.addChild(fogOverlay.getMesh());
-    
+
     ctx.root.addChild(world);
 
     const layerTextures = [
@@ -933,16 +923,6 @@ export const racerScene: SceneBuilder = async (app, params, ctx) => {
             dx,
         });
 
-        // Update fog overlay
-        fogOverlay.update({
-            fogDensity: settings.fogDensity,
-            drawDistance: settings.drawDistance,
-            cameraDepth,
-            cameraY,
-            playerZ: renderedPlayer.z,
-            segmentLength,
-        });
-
         // Still need to build projected segments for sprite rendering (cars, scenery, player)
         for (let n = 0; n < settings.drawDistance; n++) {
             const segment = segments[(normalizedBaseIndex + n) % segments.length];
@@ -1236,7 +1216,6 @@ export const racerScene: SceneBuilder = async (app, params, ctx) => {
         hudLast.destroy();
         hudFast.destroy();
         roadMesh.destroy();
-        fogOverlay.destroy();
         for (const texture of textureCache.values()) texture.destroy();
         for (const texture of layerTextures) texture.destroy();
     };
