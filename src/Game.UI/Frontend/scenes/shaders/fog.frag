@@ -1,22 +1,15 @@
-uniform float uFogDensity;
-uniform float uDrawDistance;
-uniform float uCameraDepth;
-uniform float uCameraY;
-uniform float uPlayerZ;
-uniform float uSegmentLength;
+#version 300 es
+precision mediump float;
 
-varying vec2 vUV;
+uniform vec4 uFogParams[2];
+
+in vec2 vUV;
+
+out vec4 finalColor;
 
 void main() {
-    // Screen-space fog based on vertical position
-    // vUV.y goes from 0 (top) to 1 (bottom)
-    float screenDepth = 1.0 - vUV.y; // 0 at top (far), 1 at bottom (near)
-    
-    // Exponential fog
-    float fog = 1.0 - exp(-uFogDensity * screenDepth * screenDepth);
-    
-    // Fog color: dark green
+    float screenDepth = 1.0 - vUV.y;
+    float fog = 1.0 - exp(-uFogParams[0].x * screenDepth * screenDepth);
     vec3 fogColor = vec3(0.0, 0.3, 0.05);
-    
-    gl_FragColor = vec4(fogColor, fog);
+    finalColor = vec4(fogColor, fog);
 }

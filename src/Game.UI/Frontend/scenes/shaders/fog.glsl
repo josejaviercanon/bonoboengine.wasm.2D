@@ -1,7 +1,8 @@
-attribute vec2 aPosition;
-attribute vec2 aUV;
+#version 300 es
+in vec2 aPosition;
+in vec2 aUV;
 
-varying vec2 vUV;
+out vec2 vUV;
 
 void main() {
     vUV = aUV;

@@ -28,7 +28,7 @@ export default defineConfig({
   webServer: process.env.GAME_WEB_EXTERNAL_URL
     ? undefined
     : {
-        command: `dotnet run --project ../../src/Game.Wasm`,
+        command: `dotnet run --project ../../src/Game.Wasm --no-launch-profile`,
         url: `${BASE_URL}/`,
         reuseExistingServer: true,
         timeout: 120_000,

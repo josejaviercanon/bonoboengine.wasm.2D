@@ -1,4 +1,4 @@
-import { Mesh, MeshGeometry, Shader } from 'pixi.js';
+import { Mesh, MeshGeometry, Shader, UniformGroup } from 'pixi.js';
 import fogVertWGSL from './shaders/fog.wgsl?raw';
 import fogFragWGSL from './shaders/fog.frag?raw';
 import fogVertGLSL from './shaders/fog.glsl?raw';
@@ -16,10 +16,10 @@ export class FogOverlay {
     private mesh: Mesh;
     private geometry: MeshGeometry;
     private shader: Shader;
+    private uniforms: UniformGroup;
     private uniformBuffer: Float32Array;
     
     constructor(app: any) {
-        // Full-screen quad vertices (NDC coordinates)
         const vertices = new Float32Array([
             -1, -1,
              1, -1,
@@ -37,14 +37,17 @@ export class FogOverlay {
         const indices = new Uint16Array([0, 1, 2, 2, 3, 0]);
         
         this.geometry = new MeshGeometry({
-            attributes: {
-                aPosition: { data: vertices, format: 'float32x2' },
-                aUV: { data: uvs, format: 'float32x2' },
-            },
-            index: { data: indices, format: 'uint16' },
+            positions: vertices,
+            uvs,
+            indices,
         });
         
-        this.uniformBuffer = new Float32Array(6); // fogDensity, drawDistance, cameraDepth, cameraY, playerZ, segmentLength
+        this.uniformBuffer = new Float32Array(8); // 2 x vec4: fogParams + padding
+        
+        const fogUniforms = new UniformGroup({
+            uFogParams: { value: this.uniformBuffer, type: 'vec4<f32>', size: 2 },
+        });
+        this.uniforms = fogUniforms;
         
         const isWebGPU = app.renderer.type === 'webgpu';
         
@@ -55,7 +58,7 @@ export class FogOverlay {
                     fragment: fogFragWGSL,
                 },
                 resources: {
-                    uFogParams: { type: 'uniforms', value: this.uniformBuffer },
+                    fogUniforms,
                 },
             });
         } else {
@@ -65,7 +68,7 @@ export class FogOverlay {
                     fragment: fogFragWGSL,
                 },
                 resources: {
-                    uFogParams: { type: 'uniforms', value: this.uniformBuffer },
+                    fogUniforms,
                 },
             });
         }
@@ -83,6 +86,7 @@ export class FogOverlay {
         this.uniformBuffer[3] = params.cameraY;
         this.uniformBuffer[4] = params.playerZ;
         this.uniformBuffer[5] = params.segmentLength;
+        this.uniforms.update();
     }
     
     getMesh(): Mesh {

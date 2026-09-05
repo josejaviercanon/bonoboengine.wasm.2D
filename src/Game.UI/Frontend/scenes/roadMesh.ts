@@ -1,4 +1,4 @@
-import { Mesh, MeshGeometry, Shader } from 'pixi.js';
+import { Mesh, Geometry, Shader, UniformGroup, Buffer } from 'pixi.js';
 import roadVertWGSL from './shaders/road.wgsl?raw';
 import roadFragWGSL from './shaders/road.frag?raw';
 import roadVertGLSL from './shaders/road.glsl?raw';
@@ -39,16 +39,18 @@ const SEGMENT_DARK = 1;
 
 export class RoadMesh {
     private mesh: Mesh;
-    private geometry: MeshGeometry;
+    private geometry: Geometry;
+    private uniforms!: UniformGroup;
+    private uniforms!: UniformGroup;
     private maxSegments: number;
     private quadsPerSegment: number;
     private totalInstances: number;
     
     // Instance buffers
-    private instanceSegmentId: Uint32Array;
+    private instanceSegmentId: Float32Array;
     private instanceOffsetX: Float32Array;
     private instanceScale: Float32Array;
-    private instanceColorIndex: Uint32Array;
+    private instanceColorIndex: Float32Array;
     private instanceY1: Float32Array;
     private instanceY2: Float32Array;
     private instanceCurve: Float32Array;
@@ -64,10 +66,10 @@ export class RoadMesh {
         this.totalInstances = maxSegments * this.quadsPerSegment;
         
         // Initialize instance buffers
-        this.instanceSegmentId = new Uint32Array(this.totalInstances);
+        this.instanceSegmentId = new Float32Array(this.totalInstances);
         this.instanceOffsetX = new Float32Array(this.totalInstances);
         this.instanceScale = new Float32Array(this.totalInstances);
-        this.instanceColorIndex = new Uint32Array(this.totalInstances);
+        this.instanceColorIndex = new Float32Array(this.totalInstances);
         this.instanceY1 = new Float32Array(this.totalInstances);
         this.instanceY2 = new Float32Array(this.totalInstances);
         this.instanceCurve = new Float32Array(this.totalInstances);
@@ -90,60 +92,51 @@ export class RoadMesh {
         });
     }
     
-    private createGeometry(app: any): MeshGeometry {
-        // Base quad vertices: (-1, -1) to (1, 1) for each instance
+    private createGeometry(app: any): Geometry {
         const vertices = new Float32Array([
-            -1, -1,  // bottom-left
-             1, -1,  // bottom-right
-             1,  1,  // top-right
-            -1,  1,  // top-left
+            -1, -1,  1, -1,  1,  1,  -1,  1,
         ]);
-        
         const uvs = new Float32Array([
-            0, 1,
-            1, 1,
-            1, 0,
-            0, 0,
+            0, 1,  1, 1,  1, 0,  0, 0,
         ]);
-        
         const indices = new Uint16Array([0, 1, 2, 2, 3, 0]);
         
-        // Create geometry with all attributes (static + instanced)
-        // Instance attributes use instanceDivisor: 1
-        const geometry = new MeshGeometry({
-            attributes: {
-                aPosition: { data: vertices, format: 'float32x2' },
-                aUV: { data: uvs, format: 'float32x2' },
-                aSegmentId: { data: this.instanceSegmentId, format: 'uint32', instanceDivisor: 1 },
-                aOffsetX: { data: this.instanceOffsetX, format: 'float32', instanceDivisor: 1 },
-                aScale: { data: this.instanceScale, format: 'float32', instanceDivisor: 1 },
-                aColorIndex: { data: this.instanceColorIndex, format: 'uint32', instanceDivisor: 1 },
-                aY1: { data: this.instanceY1, format: 'float32', instanceDivisor: 1 },
-                aY2: { data: this.instanceY2, format: 'float32', instanceDivisor: 1 },
-                aCurve: { data: this.instanceCurve, format: 'float32', instanceDivisor: 1 },
-                aClipY: { data: this.instanceClipY, format: 'float32', instanceDivisor: 1 },
-            },
-            index: { data: indices, format: 'uint16' },
-            instanced: true,
-            instanceCount: this.totalInstances,
-        });
+        const geometry = new Geometry();
+        
+        geometry.addAttribute('aPosition', new Buffer({ data: vertices, format: 'float32x2' }));
+        geometry.addAttribute('aUV', new Buffer({ data: uvs, format: 'float32x2' }));
+        geometry.addAttribute('aSegmentId', new Buffer({ data: this.instanceSegmentId, format: 'float32', instanceDivisor: 1 }));
+        geometry.addAttribute('aOffsetX', new Buffer({ data: this.instanceOffsetX, format: 'float32', instanceDivisor: 1 }));
+        geometry.addAttribute('aScale', new Buffer({ data: this.instanceScale, format: 'float32', instanceDivisor: 1 }));
+        geometry.addAttribute('aColorIndex', new Buffer({ data: this.instanceColorIndex, format: 'float32', instanceDivisor: 1 }));
+        geometry.addAttribute('aY1', new Buffer({ data: this.instanceY1, format: 'float32', instanceDivisor: 1 }));
+        geometry.addAttribute('aY2', new Buffer({ data: this.instanceY2, format: 'float32', instanceDivisor: 1 }));
+        geometry.addAttribute('aCurve', new Buffer({ data: this.instanceCurve, format: 'float32', instanceDivisor: 1 }));
+        geometry.addAttribute('aClipY', new Buffer({ data: this.instanceClipY, format: 'float32', instanceDivisor: 1 }));
+        
+        geometry.addIndex(new Buffer({ data: indices, format: 'uint16' }));
+        geometry.instanceCount = this.totalInstances;
         
         return geometry;
     }
     
     private createShader(app: any): Shader {
-        // Detect WebGPU vs WebGL
         const isWebGPU = app.renderer.type === 'webgpu';
+        
+        const uniforms = new UniformGroup({
+            uColors: { value: this.colorUniform, type: 'vec4<f32>', size: 4 },
+            uFogParams: { value: this.fogUniform, type: 'vec4<f32>' },
+        });
+        this.uniforms = uniforms;
         
         if (isWebGPU) {
             return Shader.from({
                 gpu: {
-                    vertex: roadVertWGSL,
-                    fragment: roadFragWGSL,
+                    vertex: { source: roadVertWGSL, entryPoint: 'vs_main' },
+                    fragment: { source: roadVertWGSL, entryPoint: 'fs_main' },
                 },
                 resources: {
-                    uColors: { type: 'uniforms', value: this.colorUniform },
-                    uFogParams: { type: 'uniforms', value: this.fogUniform },
+                    uniforms,
                 },
             });
         } else {
@@ -153,8 +146,7 @@ export class RoadMesh {
                     fragment: roadFragWGSL,
                 },
                 resources: {
-                    uColors: { type: 'uniforms', value: this.colorUniform },
-                    uFogParams: { type: 'uniforms', value: this.fogUniform },
+                    uniforms,
                 },
             });
         }
@@ -199,6 +191,8 @@ export class RoadMesh {
         this.colorUniform[4] = rumble[0]; this.colorUniform[5] = rumble[1]; this.colorUniform[6] = rumble[2]; this.colorUniform[7] = rumble[3];
         this.colorUniform[8] = road[0]; this.colorUniform[9] = road[1]; this.colorUniform[10] = road[2]; this.colorUniform[11] = road[3];
         this.colorUniform[12] = lane[0]; this.colorUniform[13] = lane[1]; this.colorUniform[14] = lane[2]; this.colorUniform[15] = lane[3];
+        
+        this.uniforms.update();
         
         const segmentLength = 200;
         
@@ -299,15 +293,15 @@ export class RoadMesh {
             this.instanceScale[i] = 0;
         }
         
-        // Update geometry buffers
-        this.geometry.getBuffer('aSegmentId').update(this.instanceSegmentId);
-        this.geometry.getBuffer('aOffsetX').update(this.instanceOffsetX);
-        this.geometry.getBuffer('aScale').update(this.instanceScale);
-        this.geometry.getBuffer('aColorIndex').update(this.instanceColorIndex);
-        this.geometry.getBuffer('aY1').update(this.instanceY1);
-        this.geometry.getBuffer('aY2').update(this.instanceY2);
-        this.geometry.getBuffer('aCurve').update(this.instanceCurve);
-        this.geometry.getBuffer('aClipY').update(this.instanceClipY);
+        // Update geometry buffers (mutated in place, update pushes to GPU)
+        this.geometry.getBuffer('aSegmentId').update();
+        this.geometry.getBuffer('aOffsetX').update();
+        this.geometry.getBuffer('aScale').update();
+        this.geometry.getBuffer('aColorIndex').update();
+        this.geometry.getBuffer('aY1').update();
+        this.geometry.getBuffer('aY2').update();
+        this.geometry.getBuffer('aCurve').update();
+        this.geometry.getBuffer('aClipY').update();
         
         this.geometry.instanceCount = instanceIdx;
     }
