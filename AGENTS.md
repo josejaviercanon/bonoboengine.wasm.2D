@@ -206,6 +206,48 @@ npx playwright test        # boots Game.Wasm via dotnet run on port 5902, uses i
 npm run typecheck
 ```
 
+Run server for testing:
+
+```powershell
+$Env:ASPNETCORE_URLS="http://localhost:5902"
+
+# Start the server and save its Process ID (PID):
+$ServerProcess = Start-Process dotnet -ArgumentList "run --project ../../src/Game.Wasm --no-launch-profile" -NoNewWindow -PassThru
+
+# Wait for startup and check status:
+Start-Sleep -Seconds 20
+curl -s -o /dev/null -w "%{http_code}" http://localhost:5902/
+
+# Automatically stop the server at the end or if stuck:
+Stop-Process -Id $ServerProcess.Id -Force
+
+# Targeting the Port Directly (Safest) without affecting other tasks: 
+Get-NetTCPConnection -LocalPort 5902 | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
+```
+
+Note: Native console commands that hang cannot always be interrupted programmatically without killing the underlying pipeline host. If you want to force specific scripts inside your project to never hang indefinitely, you should wrap your calls inside the native Wait-Job wrapper:
+
+```powershell
+$job = Start-Job -ScriptBlock { <# Your Long Command Here #> }
+$result = Wait-Job $job -Timeout 300
+if ($null -eq $result) { Stop-Job $job; Write-Error "Command Timed Out!" }
+```
+
+```bash
+export ASPNETCORE_URLS=http://localhost:5902
+
+# Start the server and save its Process ID ($!)
+dotnet run --project ../../src/Game.Wasm --no-launch-profile > /dev/null 2>&1 &
+SERVER_PID=$!
+
+# Wait for startup and check status
+sleep 20
+curl -s -o /dev/null -w "%{http_code}" http://localhost:5902/
+
+# Automatically kill the server process at the end
+kill -9 $SERVER_PID
+```
+
 **⚠️ ESM constraint:** `src/Game.Tests.UI/package.json` declares `"type": "module"`. Any standalone `.js` script written in that directory MUST use ESM `import` syntax (not `require()`). Use `.cjs` extension for CommonJS, or run scripts from the repo root. See `docs/testing-ui-E2E/index.md` §Standalone Screenshot Scripts for the corrected pattern (process lifecycle, path resolution, HTTP readiness polling).
 
 For exploratory agent-driven browser work use the `playwright-cli` skill with Chrome: `playwright-cli open <url> --browser=chrome`. A Playwright MCP server is NOT needed — skills + playwright-cli + the checked-in Playwright suite cover this repo (verdict + rationale in `docs/testing-ui-E2E/index.md`).

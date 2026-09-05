@@ -7195,65 +7195,50 @@ var $s = (e, t, n) => {
 			1,
 			-1,
 			1
-		]), n = new Float32Array([
-			0,
-			1,
-			1,
-			1,
-			1,
-			0,
-			0,
-			0
-		]), r = new Uint16Array([
+		]), n = new Uint16Array([
 			0,
 			1,
 			2,
 			2,
 			3,
 			0
-		]), i = new x();
-		return i.addAttribute("aPosition", new g({
-			data: t,
+		]), r = new x();
+		return r.addAttribute("aPosition", {
+			buffer: t,
 			format: "float32x2"
-		})), i.addAttribute("aUV", new g({
-			data: n,
-			format: "float32x2"
-		})), i.addAttribute("aSegmentId", new g({
-			data: this.instanceSegmentId,
+		}), r.addAttribute("aSegmentId", {
+			buffer: this.instanceSegmentId,
 			format: "float32",
-			instanceDivisor: 1
-		})), i.addAttribute("aOffsetX", new g({
-			data: this.instanceOffsetX,
+			divisor: 1
+		}), r.addAttribute("aOffsetX", {
+			buffer: this.instanceOffsetX,
 			format: "float32",
-			instanceDivisor: 1
-		})), i.addAttribute("aScale", new g({
-			data: this.instanceScale,
+			divisor: 1
+		}), r.addAttribute("aScale", {
+			buffer: this.instanceScale,
 			format: "float32",
-			instanceDivisor: 1
-		})), i.addAttribute("aColorIndex", new g({
-			data: this.instanceColorIndex,
+			divisor: 1
+		}), r.addAttribute("aColorIndex", {
+			buffer: this.instanceColorIndex,
 			format: "float32",
-			instanceDivisor: 1
-		})), i.addAttribute("aY1", new g({
-			data: this.instanceY1,
+			divisor: 1
+		}), r.addAttribute("aY1", {
+			buffer: this.instanceY1,
 			format: "float32",
-			instanceDivisor: 1
-		})), i.addAttribute("aY2", new g({
-			data: this.instanceY2,
+			divisor: 1
+		}), r.addAttribute("aY2", {
+			buffer: this.instanceY2,
 			format: "float32",
-			instanceDivisor: 1
-		})), i.addAttribute("aCurve", new g({
-			data: this.instanceCurve,
+			divisor: 1
+		}), r.addAttribute("aCurve", {
+			buffer: this.instanceCurve,
 			format: "float32",
-			instanceDivisor: 1
-		})), i.addAttribute("aClipY", new g({
-			data: this.instanceClipY,
+			divisor: 1
+		}), r.addAttribute("aClipY", {
+			buffer: this.instanceClipY,
 			format: "float32",
-			instanceDivisor: 1
-		})), i.addIndex(new g({
-			data: r,
-			format: "uint16"
-		})), i.instanceCount = this.totalInstances, i;
+			divisor: 1
+		}), r.addIndex(n), r.instanceCount = this.totalInstances, r;
 	}
 	createShader(e) {
 		let t = e.renderer.type === "webgpu", n = new b({

@@ -1,4 +1,4 @@
-import { Mesh, Geometry, Shader, UniformGroup, Buffer } from 'pixi.js';
+import { Mesh, Geometry, Shader, UniformGroup } from 'pixi.js';
 import roadVertWGSL from './shaders/road.wgsl?raw';
 import roadFragWGSL from './shaders/road.frag?raw';
 import roadVertGLSL from './shaders/road.glsl?raw';
@@ -93,30 +93,24 @@ export class RoadMesh {
     }
     
     private createGeometry(app: any): Geometry {
-        const vertices = new Float32Array([
-            -1, -1,  1, -1,  1,  1,  -1,  1,
-        ]);
-        const uvs = new Float32Array([
-            0, 1,  1, 1,  1, 0,  0, 0,
-        ]);
+        const vertices = new Float32Array([-1, -1, 1, -1, 1, 1, -1, 1]);
         const indices = new Uint16Array([0, 1, 2, 2, 3, 0]);
-        
+
         const geometry = new Geometry();
-        
-        geometry.addAttribute('aPosition', new Buffer({ data: vertices, format: 'float32x2' }));
-        geometry.addAttribute('aUV', new Buffer({ data: uvs, format: 'float32x2' }));
-        geometry.addAttribute('aSegmentId', new Buffer({ data: this.instanceSegmentId, format: 'float32', instanceDivisor: 1 }));
-        geometry.addAttribute('aOffsetX', new Buffer({ data: this.instanceOffsetX, format: 'float32', instanceDivisor: 1 }));
-        geometry.addAttribute('aScale', new Buffer({ data: this.instanceScale, format: 'float32', instanceDivisor: 1 }));
-        geometry.addAttribute('aColorIndex', new Buffer({ data: this.instanceColorIndex, format: 'float32', instanceDivisor: 1 }));
-        geometry.addAttribute('aY1', new Buffer({ data: this.instanceY1, format: 'float32', instanceDivisor: 1 }));
-        geometry.addAttribute('aY2', new Buffer({ data: this.instanceY2, format: 'float32', instanceDivisor: 1 }));
-        geometry.addAttribute('aCurve', new Buffer({ data: this.instanceCurve, format: 'float32', instanceDivisor: 1 }));
-        geometry.addAttribute('aClipY', new Buffer({ data: this.instanceClipY, format: 'float32', instanceDivisor: 1 }));
-        
-        geometry.addIndex(new Buffer({ data: indices, format: 'uint16' }));
+
+        geometry.addAttribute('aPosition', { buffer: vertices, format: 'float32x2' });
+        geometry.addAttribute('aSegmentId', { buffer: this.instanceSegmentId, format: 'float32', divisor: 1 });
+        geometry.addAttribute('aOffsetX', { buffer: this.instanceOffsetX, format: 'float32', divisor: 1 });
+        geometry.addAttribute('aScale', { buffer: this.instanceScale, format: 'float32', divisor: 1 });
+        geometry.addAttribute('aColorIndex', { buffer: this.instanceColorIndex, format: 'float32', divisor: 1 });
+        geometry.addAttribute('aY1', { buffer: this.instanceY1, format: 'float32', divisor: 1 });
+        geometry.addAttribute('aY2', { buffer: this.instanceY2, format: 'float32', divisor: 1 });
+        geometry.addAttribute('aCurve', { buffer: this.instanceCurve, format: 'float32', divisor: 1 });
+        geometry.addAttribute('aClipY', { buffer: this.instanceClipY, format: 'float32', divisor: 1 });
+
+        geometry.addIndex(indices);
         geometry.instanceCount = this.totalInstances;
-        
+
         return geometry;
     }
     
