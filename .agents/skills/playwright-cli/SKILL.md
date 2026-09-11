@@ -6,25 +6,11 @@ allowed-tools: Bash(playwright-cli:*) Bash(npx:*) Bash(npm:*)
 
 # Browser Automation with playwright-cli
 
-Rule: use chrome as browser
-
 ## Quick start
-
-Help to show available commands:
-
-```bash
-playwright-cli --help
-#Command-specific help
-playwright-cli open --help
-```
-
-```bash
-playwright-cli open --browser=chrome
-```
 
 ```bash
 # open new browser
-playwright-cli open --browser=chrome
+playwright-cli open
 # navigate to a page
 playwright-cli goto https://playwright.dev
 # interact with the page using refs from the snapshot
@@ -179,6 +165,11 @@ playwright-cli run-code "async page => await page.context().grantPermissions(['g
 playwright-cli run-code --filename=script.js
 playwright-cli tracing-start
 playwright-cli tracing-stop
+
+# record user actions in the browser, print them as Playwright code on stop
+playwright-cli recording-start
+playwright-cli recording-stop
+
 playwright-cli video-start video.webm
 playwright-cli video-chapter "Chapter Title" --description="Details" --duration=2000
 playwright-cli video-stop
